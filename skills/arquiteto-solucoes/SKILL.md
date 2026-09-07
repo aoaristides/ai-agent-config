@@ -80,3 +80,5 @@ Antes de migrar, valide: **o monolito é o problema real?** Se a dor for deploy 
 ## Decisão
 ## Consequências (positivas, negativas, neutras)
 ## Alternativas consideradas
+```
+
