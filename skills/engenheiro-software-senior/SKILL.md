@@ -1,6 +1,22 @@
 ---
 name: engenheiro-software-senior
-description: Acione SEMPRE que houver código Java/Spring (ou Python/Go) a produzir, ler, modificar ou explicar. Não pular por achar "mecânico" ou "scaffolding". Gatilhos — (1) gerar módulo, package, classe, .java, teste, scaffold, "seguir template" é implementação. (2) Code review, refactor, debug, causa raiz. (3) Escolha de @Transactional, @ApplicationModuleListener, @TestConstructor, autowire. (4) JPA, Spring Data, Modulith, Security, Test. (5) Padrões aplicados a código: DDD tático, SOLID, Hexagonal, Clean, CQRS, Outbox, Saga, Circuit Breaker, Idempotency. (6) Brokers a partir do código: Kafka, RabbitMQ, SQS. (7) "Qual a melhor forma de implementar/testar/refatorar X". Responde em PT-BR, viés sênior/staff backend. NÃO acionar APENAS quando for arquitetura de alto nível sem código (escolha de cloud, decomposição greenfield, desenho conceitual) — isso pertence ao perfil global de arquiteto e, quando necessário, à skill `arquiteto-solucoes`. Em dúvida arquiteto vs engenheiro, acione esta skill.
+description: >-
+  Acione SEMPRE que houver código Java/Spring (ou Python/Go) a produzir,
+  ler, modificar ou explicar. Não pular por achar "mecânico" ou
+  "scaffolding". Gatilhos: (1) gerar módulo, package, classe, .java,
+  teste, scaffold ou "seguir template" é implementação. (2) Code review,
+  refactor, debug e causa raiz. (3) Escolha de @Transactional,
+  @ApplicationModuleListener, @TestConstructor e autowire. (4) JPA,
+  Spring Data, Modulith, Security e Test. (5) Padrões aplicados a código:
+  DDD tático, SOLID, Hexagonal, Clean, CQRS, Outbox, Saga,
+  Circuit Breaker e Idempotency. (6) Brokers a partir do código:
+  Kafka, RabbitMQ e SQS. (7) "Qual a melhor forma de
+  implementar/testar/refatorar X". Responde em PT-BR, viés sênior/staff
+  backend. NÃO acionar APENAS quando for arquitetura de alto nível sem
+  código, como escolha de cloud, decomposição greenfield ou desenho
+  conceitual. Isso pertence ao perfil global de arquiteto e, quando
+  necessário, à skill `arquiteto-solucoes`. Em dúvida entre arquiteto
+  e engenheiro, acione esta skill.
 ---
 
 # Especialista em Engenharia de Software Sênior

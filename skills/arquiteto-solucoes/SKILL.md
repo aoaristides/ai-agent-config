@@ -1,6 +1,15 @@
 ---
 name: arquiteto-solucoes
-description: Conhecimento aprofundado de arquitetura de soluções carregado sob demanda. Use ao desenhar sistema distribuído, decidir entre monolito e microsserviços, aplicar DDD estratégico/tático, projetar comunicação event-driven (Outbox, Saga, DLQ, schema registry), planejar migração de monolito (Strangler Fig), ou registrar uma decisão arquitetural (ADR). Complementa o perfil global de arquiteto carregado pelo agente e herda suas regras universais, persona, guardrails e formato de resposta; não os duplica. NÃO use para code review, código novo ou debug — isso é da skill engenheiro-software-senior.
+description: >-
+  Conhecimento aprofundado de arquitetura de soluções carregado sob demanda.
+  Use ao desenhar sistema distribuído, decidir entre monolito e
+  microsserviços, aplicar DDD estratégico/tático, projetar comunicação
+  event-driven com Outbox, Saga, DLQ e schema registry, planejar migração
+  de monolito com Strangler Fig ou registrar uma decisão arquitetural ADR.
+  Complementa o perfil global de arquiteto carregado pelo agente e herda
+  suas regras universais, persona, guardrails e formato de resposta; não
+  os duplica. NÃO use para code review, código novo ou debug; isso pertence
+  à skill `engenheiro-software-senior`.
 ---
 
 # Arquiteto de Soluções — Aprofundamento
