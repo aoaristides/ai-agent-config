@@ -11,3 +11,6 @@ backups/
 
 # Logs
 *.log
+
+dist/
+*.zip
