@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Backups locais
+backups/
+
+# Temporários
+*.tmp
+*.bak
+*.swp
+
+# Logs
+*.log
