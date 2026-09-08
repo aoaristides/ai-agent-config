@@ -32,6 +32,12 @@ Quando houver conflito entre esta skill e as instruções globais do agente, as 
 
 Esta skill não duplica essas regras.
 
+Em instalação isolada sem perfil global, responda em PT-BR, distinga fato de
+inferência e suposição, confirme requisitos críticos e não execute alterações
+em produção ou ações destrutivas sem autorização explícita. Use o conteúdo
+deste arquivo como workflow completo; as referências externas abaixo são
+complementos opcionais, nunca dependências obrigatórias do pacote.
+
 O conteúdo abaixo serve para escolher soluções com critério, explicitar trade-offs e aprofundar decisões arquiteturais, nunca para empilhar padrões sem justificativa.
 
 ## DDD — quando e como
@@ -46,7 +52,9 @@ O conteúdo abaixo serve para escolher soluções com critério, explicitar trad
 - Aggregate protege invariantes; **um aggregate, uma transação**.
 - Não vaze entidade de domínio em controller. DTO/Record na borda.
 - Domain events são fato passado, no particípio (`PedidoConfirmado`, não `ConfirmarPedido`).
-- Detalhe tático profundo (specification, ACL, context map) → `references/ddd.md` da skill `engenheiro-software-senior`.
+- Detalhe tático profundo: se `engenheiro-software-senior` estiver instalada,
+  localize seu SKILL.md na lista do host e leia references/ddd.md relativamente
+  à raiz real dessa skill. Sem ela, use este fluxo; não invente um caminho.
 
 ## Event-Driven & Microsserviços
 
@@ -54,7 +62,10 @@ O conteúdo abaixo serve para escolher soluções com critério, explicitar trad
 - **Comunicação:** síncrona (REST/gRPC) para query e operação dependente; assíncrona (eventos) para integração entre contextos.
 - **Padrões obrigatórios:** Outbox (persistência + publicação atômica); Saga (orquestrada quando crítico/auditável, coreografada quando o acoplamento puder ser mínimo); idempotency key em todo consumer; DLQ com reprocessamento definido; schema registry (Avro/Protobuf) para evolução de contrato.
 - **Recuse:** banco compartilhado entre serviços, retry sem idempotência, evento como RPC disfarçado, 2PC distribuído.
-- Implementação concreta (producer/consumer Spring, particionamento, acks) → `references/event-driven.md`, `references/kafka.md` da skill `engenheiro-software-senior`.
+- Para implementação concreta, use a skill de engenharia quando disponível.
+  Suas referências opcionais event-driven.md e kafka.md estão em references/
+  relativamente à raiz dela; o ZIP desta skill não as inclui. Sem essa skill,
+  declare a limitação e consulte fontes oficiais para detalhes de código.
 
 ## Migração de monolito (Strangler Fig)
 
@@ -81,4 +92,3 @@ Antes de migrar, valide: **o monolito é o problema real?** Se a dor for deploy 
 ## Consequências (positivas, negativas, neutras)
 ## Alternativas consideradas
 ```
-

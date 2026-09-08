@@ -1,12 +1,42 @@
 # AI Agent Config
 
-Configuração compartilhada de skills usadas por diferentes agentes de IA.
+Configuração compartilhada e portátil para agentes de IA: perfis, skills,
+conhecimento técnico curado, trilhas de aprendizado, templates e contexto de
+projetos.
+
+## Integração com os agentes
+
+Consulte [o guia de integração](docs/agent-integration.md). Criar uma pasta em
+`skills/` não instala a skill nos agentes. O instalador oferece um plano sem
+escrita e aplicação explícita, preservando instruções e links existentes:
+
+```bash
+ruby scripts/install-agents.rb --user --agents codex,claude,gemini,antigravity
+```
+
+Acrescente `--apply` para aplicar. Para um projeto consumidor, use `--project`
+com o caminho absoluto do projeto. O núcleo está em
+[context/agent-core.md](context/agent-core.md); Claude/Gemini usam importações
+nativas, e os demais adaptadores recebem instruções no formato do host.
+
+Validação completa da fonte: `./scripts/validate-structure.sh`.
+Regressões e instalação isolada: `ruby scripts/test-integration.rb`.
+Sessões reais: [casos e critérios de aceite](tests/session-cases.md).
+O sucesso desses testes estruturais não certifica uma sessão real de modelo.
 
 ## Estrutura e fonte canônica
 
-- `skills/arquiteto-solucoes/`
-- `skills/engenheiro-software-senior/`
+- `AGENTS.md` e `CLAUDE.md` — pontos de entrada compatíveis para agentes.
+- `profiles/` — contexto técnico e preferências relativamente estáveis.
+- `skills/` — comportamento especializado; cada skill tem um `SKILL.md`.
+- `knowledge/` — modelos mentais e checklists técnicos reutilizáveis.
+- `learning/` — contexto, roadmap, progresso, notas e exercícios por tema.
+- `templates/` — modelos de ADR, reviews, incidentes, projetos e estudo.
+- `projects/` — contexto portátil de projetos, com exemplo inicial.
+- `prompts/` — entradas curtas que encaminham para as skills apropriadas.
 - `scripts/package-skills.sh` — valida e empacota as skills para upload.
+- `scripts/create-learning-topic.sh` — cria uma trilha sem sobrescrever tópicos.
+- `scripts/validate-structure.sh` — valida arquivos obrigatórios e skills.
 - `dist/` — ZIPs gerados localmente, fora do versionamento.
 
 As skills são agnósticas ao agente. A fonte canônica é:
@@ -77,11 +107,13 @@ e recria o ZIP correspondente em `dist/`. Ele exclui arquivos como `.DS_Store`,
 metadados de Git/IDE e temporários. Essa validação não substitui a validação de
 upload do Claude.
 
-Com as duas skills atuais, os arquivos gerados são:
+Com as skills atuais, é gerado um ZIP por subpasta válida de `skills/`, por
+exemplo:
 
 ```text
 ~/ai-agent-config/dist/arquiteto-solucoes.zip
 ~/ai-agent-config/dist/engenheiro-software-senior.zip
+~/ai-agent-config/dist/mentor-tecnico.zip
 ```
 
 Cada ZIP contém a pasta da própria skill na raiz, com `SKILL.md` e seus recursos
@@ -140,14 +172,67 @@ arquivo que já tenha sido versionado anteriormente.
 
 ## Segundo cérebro
 
-O conhecimento persistente fica separado no Obsidian.
+Este repositório guarda a parte **portátil e versionada** do segundo cérebro:
+comportamento dos agentes, perfil técnico, conhecimento curado, templates e
+trilhas de aprendizado.
+
+O conhecimento **vivo e factual** continua separado no Obsidian:
 
 Vault:
 
 `~/obsidian/claude-second-brain/`
 
-O repositório `ai-agent-config` contém comportamento/configuração dos agentes,
-não o conteúdo do segundo cérebro.
+O cofre continua sendo a fonte de verdade para decisões reais, estado de
+projetos, preferências confirmadas, gotchas e aprendizados observados. Não copie
+automaticamente notas entre os dois locais: defina a autoridade antes de
+registrar para evitar divergência.
+
+## Árvore do segundo cérebro
+
+```text
+ai-agent-config/
+├── AGENTS.md
+├── CLAUDE.md
+├── profiles/
+├── skills/
+│   ├── arquiteto-solucoes/
+│   ├── engenheiro-software-senior/
+│   ├── mentor-tecnico/
+│   ├── architecture-review/
+│   ├── code-review/
+│   └── troubleshooting/
+├── knowledge/
+│   ├── architecture/  java/  spring/  kafka/
+│   ├── kubernetes/    cloud/ ddd/     databases/
+│   └── observability/ performance/ ai-engineering/
+├── learning/
+│   ├── kafka/
+│   └── ddd/
+├── templates/
+├── projects/
+├── prompts/
+└── scripts/
+```
+
+## Criar uma nova trilha
+
+```bash
+./scripts/create-learning-topic.sh spring-security
+```
+
+O comando aceita nomes em kebab-case e recusa sobrescrever uma pasta existente.
+Ele cria `context.md`, `roadmap.md`, `progress.md`, `notes.md` e `exercises.md`.
+
+## Validar a estrutura
+
+```bash
+./scripts/validate-structure.sh
+```
+
+Execute a validação antes de empacotar skills. Ela interpreta YAML, valida
+nome/pasta, campos, limites, corpo, referências obrigatórias do pacote, todos
+os tópicos de aprendizado, arquivos do manifesto e imports de contexto.
+O package-skills.sh existente permanece preservado; execute a validação primeiro.
 
 ## Regra
 

@@ -122,12 +122,18 @@ src/main/resources/db/migration/
 │   ├── V1__init.sql
 │   └── V2__add_responsavel.sql
 ├── importacaorsdata/
-│   └── V1__init.sql
+│   └── V3__init.sql
 └── financeiroboleto/
-    └── V1__init.sql
+    └── V4__init.sql
 ```
 
-Cada módulo numera independente do `V1`. Configurar Flyway com múltiplas locations em `application.yml`:
+O desenho acima mantém versões únicas entre pastas. Dois `V1` NÃO podem
+participar da mesma execução do Flyway. Múltiplas locations são apenas locais
+de busca: não criam instâncias nem históricos independentes.
+
+Com uma instância/histórico, numere globalmente: por exemplo, cadastroempresa
+com V1 e V2, importacaorsdata com V3 e financeiroboleto com V4. As pastas por
+módulo podem permanecer. A configuração abaixo exige versões únicas no conjunto:
 
 ```yaml
 spring:
@@ -138,7 +144,18 @@ spring:
       - classpath:db/migration/financeiroboleto
 ```
 
-Em produção, cada módulo idealmente tem schema PostgreSQL próprio (`cadastroempresa.empresas`, `financeiroboleto.boletos`) — reforça isolamento de Modulith no banco. Quando schema separado for adotado, declarar no SQL: `CREATE SCHEMA IF NOT EXISTS cadastroempresa;` no `V1__init.sql` do módulo.
+Schema PostgreSQL próprio por módulo pode reforçar o isolamento. Quando adotado,
+declare sua criação na migration inicial do módulo, mantendo a numeração global
+se houver apenas uma instância/histórico Flyway.
+
+Numeração independente a partir de V1 só funciona com configurações/instâncias
+Flyway e tabelas de histórico efetivamente separadas, além de ordem de execução
+definida. Criar schemas de negócio separados não isola o histórico automaticamente.
+Não gere essa alternativa sem definir seu ciclo de inicialização e validação.
+
+[fato] Verificado em 2026-09-08: versões são únicas por conjunto de migrations
+resolvido. Fontes: [Versioned migrations](https://documentation.red-gate.com/flyway/flyway-concepts/migrations/versioned-migrations)
+e [Locations](https://documentation.red-gate.com/flyway/reference/configuration/flyway-namespace/flyway-locations-setting).
 
 Alternativa mais simples (aceitável em projetos pequenos): prefixo de versão por módulo — cadastroempresa usa `V1xx__*.sql`, importacaorsdata usa `V2xx__*.sql`, etc. Frágil quando módulo passa de 99 migrations; documentar a convenção num ADR se adotar.
 
