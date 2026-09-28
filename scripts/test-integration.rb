@@ -6,6 +6,7 @@ require 'tmpdir'
 require 'fileutils'
 require 'open3'
 require 'digest'
+require_relative 'context_compiler'
 require_relative 'validate_structure'
 
 class IntegrationTest < Minitest::Test
@@ -15,9 +16,11 @@ class IntegrationTest < Minitest::Test
     FileUtils.mkdir_p(@root)
     source = File.expand_path('..', __dir__)
     %w[README.md AGENTS.md CLAUDE.md GEMINI.md profiles skills knowledge learning
-       templates projects prompts scripts context docs tests].each do |name|
+       templates projects prompts scripts context docs tests adapters config core
+       roles workflows context-packs context-index.md].each do |name|
       FileUtils.cp_r(File.join(source, name), @root)
     end
+    Dir[File.join(@root, '**', '*.ai-agent-config.bak')].each { |path| FileUtils.rm_f(path) }
   end
 
   def teardown
@@ -37,6 +40,57 @@ class IntegrationTest < Minitest::Test
 
   def test_valid_source
     assert_empty errors
+  end
+
+  def test_context_compiler_renders_deterministically
+    first = ContextCompiler.render(root: @root, adapter: 'codex', root_label: '/portable/root')
+    second = ContextCompiler.render(root: @root, adapter: 'codex', root_label: '/portable/root')
+    assert_equal first, second
+    assert_includes first, ContextCompiler::GENERATED_MARK
+    assert_includes first, '/portable/root'
+    assert_includes first, '<!-- source: core/kernel.md -->'
+    assert_includes first, '<!-- source: context-index.md -->'
+  end
+
+  def test_context_compiler_rejects_unknown_adapter_and_traversal
+    assert_raises(ContextCompiler::ConfigError) do
+      ContextCompiler.render(root: @root, adapter: 'unknown')
+    end
+    manifest = File.join(@root, 'config/context-manifest.yml')
+    File.write(manifest, File.read(manifest).sub('output: adapters/codex/AGENTS.md', 'output: ../outside.md'))
+    assert errors.any? { |error| error.include?('caminho inválido') }
+  end
+
+  def test_context_drift_is_detected
+    script = File.join(@root, 'scripts/check-context-drift.rb')
+    _, status = Open3.capture2e('ruby', script)
+    assert status.success?
+    File.open(File.join(@root, 'core/kernel.md'), 'a') { |file| file.write("\nMudança de teste.\n") }
+    output, status = Open3.capture2e('ruby', script)
+    refute status.success?
+    assert_includes output, 'divergência'
+  end
+
+  def test_platform_sync_is_dry_run_non_destructive_and_idempotent
+    output_file = File.join(@root, 'adapters/codex/AGENTS.md')
+    File.write(output_file, '# Conteúdo manual')
+    script = File.join(@root, 'scripts/sync-platforms.rb')
+
+    _, status = Open3.capture2e('ruby', script)
+    assert status.success?
+    assert_equal '# Conteúdo manual', File.read(output_file)
+    refute File.exist?(output_file + '.ai-agent-config.bak')
+
+    _, status = Open3.capture2e('ruby', script, '--apply')
+    assert status.success?
+    assert_equal '# Conteúdo manual', File.read(output_file + '.ai-agent-config.bak')
+    assert_includes File.read(output_file), ContextCompiler::GENERATED_MARK
+
+    before = File.read(output_file)
+    sync_output, status = Open3.capture2e('ruby', script, '--apply')
+    assert status.success?
+    assert_equal before, File.read(output_file)
+    assert_includes sync_output, '0 alteração(ões)'
   end
 
   def test_rejects_malformed_yaml_previously_accepted
@@ -150,6 +204,12 @@ class IntegrationTest < Minitest::Test
     Open3.capture2e('ruby', File.join(@root, 'scripts', 'install-agents.rb'), '--project', project, *args)
   end
 
+  def source_skill_names
+    Dir.children(File.join(@root, 'skills')).sort.select do |name|
+      File.file?(File.join(@root, 'skills', name, 'SKILL.md'))
+    end
+  end
+
   def test_installation_dry_run_and_preservation_and_idempotence
     project = File.join(@temp, 'consumer with spaces')
     FileUtils.mkdir_p(project)
@@ -162,15 +222,45 @@ class IntegrationTest < Minitest::Test
     assert status.success?
     assert File.read(rules).start_with?('# Regra original do consumidor')
     assert_equal '# Regra original do consumidor', File.read(rules + '.ai-agent-config.bak')
+    assert_includes File.read(rules), ContextCompiler::GENERATED_MARK
+    assert_includes File.read(rules), '## Modos de contexto'
     assert_includes File.read(File.join(project, 'CLAUDE.md')), '@AGENTS.md'
-    assert_includes File.read(File.join(project, 'GEMINI.md')), '@AGENTS.md'
-    assert_equal 6, Dir[File.join(project, '.agents', 'skills', '*')].length
+    refute File.exist?(File.join(project, 'GEMINI.md'))
+    assert File.file?(File.join(project, '.agents/rules/ai-agent-config.md'))
+    assert_equal source_skill_names.length, Dir[File.join(project, '.agents', 'skills', '*')].length
     assert_equal File.realpath(File.join(@root, 'skills', 'mentor-tecnico')),
                  File.realpath(File.join(project, '.claude', 'skills', 'mentor-tecnico'))
+    assert_equal File.realpath(File.join(@root, 'skills', 'mentor-aprendizado')),
+                 File.realpath(File.join(project, '.agents', 'skills', 'mentor-aprendizado'))
     before = File.read(rules)
     _, status = install(project, '--apply')
     assert status.success?
     assert_equal before, File.read(rules)
+  end
+
+  def test_gemini_cli_is_rejected_without_writes
+    project = File.join(@temp, 'unsupported')
+    FileUtils.mkdir_p(project)
+    output, status = install(project, '--agents', 'gemini', '--apply')
+    refute status.success?
+    assert_includes output, 'agente desconhecido'
+    assert_empty Dir.children(project)
+  end
+
+  def test_antigravity_global_paths_are_preserved
+    home = File.join(@temp, 'personal')
+    FileUtils.mkdir_p(home)
+    rules = File.join(home, '.gemini/GEMINI.md')
+    FileUtils.mkdir_p(File.dirname(rules))
+    File.write(rules, '# Regra pessoal existente')
+    _, status = Open3.capture2e({ 'HOME' => home }, 'ruby',
+      File.join(@root, 'scripts/install-agents.rb'), '--user', '--agents', 'antigravity', '--apply')
+    assert status.success?
+    assert File.read(rules).start_with?('# Regra pessoal existente')
+    assert_equal source_skill_names.length, Dir[File.join(home, '.gemini/config/skills/*')].length
+    assert_equal File.realpath(File.join(@root, 'skills', 'mentor-aprendizado')),
+                 File.realpath(File.join(home, '.gemini/config/skills/mentor-aprendizado'))
+    refute File.exist?(File.join(home, '.agents'))
   end
 
   def test_installation_refuses_conflicting_skill_before_writes

@@ -3,13 +3,17 @@ name: code-review
 description: >-
   Estrutura code reviews orientados a risco, corretude e produção, com achados
   priorizados e correções acionáveis. Use quando o pedido for explicitamente uma
-  revisão de código; para implementação ou debug amplo, use engenheiro-software-senior.
+  revisão de código; quando engenheiro-software-senior estiver disponível,
+  componha as duas skills. Para implementação ou debug amplo, a engenharia conduz.
 ---
 
 # Code Review
 
-Quando `engenheiro-software-senior` estiver disponível, use seus critérios
-técnicos e conduza o review pelo fluxo abaixo. Em instalação isolada, os
+Antes de iniciar a análise, quando `engenheiro-software-senior` estiver
+disponível, carregue e leia seu `SKILL.md`. Essa composição é obrigatória:
+`code-review` conduz o workflow e a taxonomia; `engenheiro-software-senior`
+fornece os critérios técnicos. Consultar o cofre ou conhecer critérios
+equivalentes não substitui o carregamento da skill. Em instalação isolada, os
 critérios essenciais deste arquivo são suficientes; não presuma outra skill.
 Responda em PT-BR, diferencie fato de hipótese e preserve o escopo de revisão.
 

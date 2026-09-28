@@ -2,7 +2,7 @@
 
 # CLAUDE.md — Contexto do repositório
 
-Use este repositório como configuração portátil compartilhada. Preserve as instruções existentes e aplique as regras de `AGENTS.md` como contexto do projeto.
+Use este repositório como configuração portátil compartilhada. Preserve as instruções existentes e aplique as regras de `AGENTS.md` como contexto do projeto. Em tarefa não trivial, use `context-index.md` para selecionar apenas os módulos pertinentes.
 
 ## Roteamento
 

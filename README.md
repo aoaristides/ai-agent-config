@@ -11,21 +11,27 @@ Consulte [o guia de integração](docs/agent-integration.md). Criar uma pasta em
 escrita e aplicação explícita, preservando instruções e links existentes:
 
 ```bash
-ruby scripts/install-agents.rb --user --agents codex,claude,gemini,antigravity
+ruby scripts/install-agents.rb --user --agents codex,claude,antigravity
 ```
 
 Acrescente `--apply` para aplicar. Para um projeto consumidor, use `--project`
 com o caminho absoluto do projeto. O núcleo está em
-[context/agent-core.md](context/agent-core.md); Claude/Gemini usam importações
-nativas, e os demais adaptadores recebem instruções no formato do host.
+[context/agent-core.md](context/agent-core.md); Claude usa importação
+nativa, e os demais adaptadores recebem instruções no formato do host.
+Gemini CLI está fora do escopo; a integração Google mantida é o Antigravity.
 
 Validação completa da fonte: `./scripts/validate-structure.sh`.
 Regressões e instalação isolada: `ruby scripts/test-integration.rb`.
 Sessões reais: [casos e critérios de aceite](tests/session-cases.md).
+Estado por host e pendências: [matriz de validação](tests/session-results.md).
 O sucesso desses testes estruturais não certifica uma sessão real de modelo.
 
 ## Estrutura e fonte canônica
 
+- `core/` e `context-index.md` — kernel, contratos globais e roteamento seletivo.
+- `roles/`, `workflows/` e `context-packs/` — contexto sob demanda.
+- `config/context-manifest.yml` — composição canônica dos adaptadores.
+- `adapters/` — templates e artefatos gerados para cada host.
 - `AGENTS.md` e `CLAUDE.md` — pontos de entrada compatíveis para agentes.
 - `profiles/` — contexto técnico e preferências relativamente estáveis.
 - `skills/` — comportamento especializado; cada skill tem um `SKILL.md`.
@@ -37,7 +43,27 @@ O sucesso desses testes estruturais não certifica uma sessão real de modelo.
 - `scripts/package-skills.sh` — valida e empacota as skills para upload.
 - `scripts/create-learning-topic.sh` — cria uma trilha sem sobrescrever tópicos.
 - `scripts/validate-structure.sh` — valida arquivos obrigatórios e skills.
+- `scripts/render-agent-context.rb` — renderiza um adaptador sem escrever.
+- `scripts/sync-platforms.rb` — sincroniza adaptadores; `dry-run` por padrão.
+- `scripts/check-context-drift.rb` — falha quando a fonte e a saída divergem.
 - `dist/` — ZIPs gerados localmente, fora do versionamento.
+
+## Compilador de contexto
+
+O contexto fixo é composto pelo manifesto; roles, workflows, packs e projetos
+continuam sob demanda. Para atualizar os adaptadores:
+
+```bash
+ruby scripts/sync-platforms.rb
+ruby scripts/sync-platforms.rb --apply
+ruby scripts/check-context-drift.rb
+./scripts/validate-structure.sh
+ruby scripts/test-integration.rb
+```
+
+O sincronizador preserva conteúdo não gerado em backup, escreve de forma
+atômica e se torna idempotente depois da primeira geração. O instalador usa o
+mesmo renderer e mantém blocos externos às marcações gerenciadas.
 
 As skills são agnósticas ao agente. A fonte canônica é:
 
@@ -46,16 +72,58 @@ As skills são agnósticas ao agente. A fonte canônica é:
 Edite o `SKILL.md` e seus recursos sempre nessa pasta. Os symlinks locais e os
 ZIPs para upload derivam dessa mesma fonte.
 
-## Claude Code e Codex: symlinks locais
+## Symlinks locais
 
-[fato] Nesta instalação, Claude Code e Codex acessam as duas skills por symlinks:
+[fato] Nesta instalação, os agentes locais acessam as sete skills por symlinks.
+Cada diretório configurado contém links com os mesmos sete nomes:
 
-| Agente | Symlink local | Destino canônico |
+| Agente | Diretório local | Destino de cada link |
 | --- | --- | --- |
-| Claude Code | `~/.claude/skills/arquiteto-solucoes` | `~/ai-agent-config/skills/arquiteto-solucoes` |
-| Claude Code | `~/.claude/skills/engenheiro-software-senior` | `~/ai-agent-config/skills/engenheiro-software-senior` |
-| Codex | `~/.codex/skills/arquiteto-solucoes` | `~/ai-agent-config/skills/arquiteto-solucoes` |
-| Codex | `~/.codex/skills/engenheiro-software-senior` | `~/ai-agent-config/skills/engenheiro-software-senior` |
+| Claude Code | `~/.claude/skills/` | `~/ai-agent-config/skills/<nome>/` |
+| Codex | `~/.agents/skills/` ou o legado local `~/.codex/skills/` | `~/ai-agent-config/skills/<nome>/` |
+| Antigravity | `~/.gemini/config/skills/` | `~/ai-agent-config/skills/<nome>/` |
+
+Nomes: `arquiteto-solucoes`, `engenheiro-software-senior`,
+`mentor-aprendizado`, `mentor-tecnico`, `architecture-review`, `code-review` e
+`troubleshooting`.
+
+### Instalar pelos symlinks
+
+O fluxo recomendado usa o instalador, que primeiro valida a fonte e os
+conflitos. Confira o plano sem escrita:
+
+```bash
+ruby scripts/install-agents.rb --user --agents codex,claude,antigravity
+```
+
+Se os destinos estiverem corretos, aplique o mesmo plano:
+
+```bash
+ruby scripts/install-agents.rb --user --agents codex,claude,antigravity --apply
+```
+
+O instalador cria links para todas as skills da fonte, incluindo
+`mentor-aprendizado`. Para instalar somente essa skill manualmente, escolha
+apenas o diretório do agente desejado:
+
+```bash
+# Codex — use este destino quando não houver configuração legada.
+mkdir -p ~/.agents/skills
+ln -s ~/ai-agent-config/skills/mentor-aprendizado ~/.agents/skills/mentor-aprendizado
+
+# Claude Code.
+mkdir -p ~/.claude/skills
+ln -s ~/ai-agent-config/skills/mentor-aprendizado ~/.claude/skills/mentor-aprendizado
+
+# Antigravity.
+mkdir -p ~/.gemini/config/skills
+ln -s ~/ai-agent-config/skills/mentor-aprendizado ~/.gemini/config/skills/mentor-aprendizado
+```
+
+Se o Codex local já usa `~/.codex/skills/`, crie o link nesse diretório em vez
+de também usar `~/.agents/skills/`; manter os dois pode exibir aliases
+duplicados. Os comandos manuais recusam um destino existente: revise-o em vez
+de usar `ln -sf` e sobrescrever silenciosamente.
 
 Os links apontam para os mesmos arquivos; não é necessário copiar as alterações
 nem gerar ZIPs para esses consumidores locais. Isso não garante que uma sessão
@@ -113,6 +181,7 @@ exemplo:
 ```text
 ~/ai-agent-config/dist/arquiteto-solucoes.zip
 ~/ai-agent-config/dist/engenheiro-software-senior.zip
+~/ai-agent-config/dist/mentor-aprendizado.zip
 ~/ai-agent-config/dist/mentor-tecnico.zip
 ```
 
@@ -193,10 +262,17 @@ registrar para evitar divergência.
 ai-agent-config/
 ├── AGENTS.md
 ├── CLAUDE.md
+├── config/context-manifest.yml
+├── core/
+├── roles/
+├── workflows/
+├── context-packs/
+├── adapters/
 ├── profiles/
 ├── skills/
 │   ├── arquiteto-solucoes/
 │   ├── engenheiro-software-senior/
+│   ├── mentor-aprendizado/
 │   ├── mentor-tecnico/
 │   ├── architecture-review/
 │   ├── code-review/

@@ -1,0 +1,19 @@
+version: 1
+max_bytes: 24576
+modules:
+  - context/agent-core.md
+  - core/kernel.md
+  - core/safety.md
+  - core/output-contracts.md
+  - core/review-taxonomy.md
+  - context-index.md
+adapters:
+  codex:
+    template: adapters/templates/codex.md
+    output: adapters/codex/AGENTS.md
+  claude:
+    template: adapters/templates/claude.md
+    output: adapters/claude/CLAUDE.md
+  antigravity:
+    template: adapters/templates/antigravity.md
+    output: adapters/antigravity/GEMINI.md

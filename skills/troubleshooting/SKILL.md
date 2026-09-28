@@ -17,7 +17,11 @@ description: >-
 4. Colete a evidência mínima que distingue as hipóteses: métricas, logs, traces, dump ou teste isolado.
 5. Proponha mitigação sem destruir evidência. Aplique somente quando o pedido
    autorizar a mudança; diagnóstico isolado não autoriza executar mitigação.
-6. Confirme causa raiz reproduzindo ou eliminando o sintoma.
+6. Confirme a causa com evidência que diferencie a hipótese das alternativas:
+   reprodução controlada ou experimento discriminante que explique o mecanismo.
+   O desaparecimento do sintoma após restart, retry ou aumento de capacidade
+   comprova no máximo a eficácia da mitigação. Sem evidência causal suficiente,
+   mantenha a causa como hipótese ou indeterminada.
 7. Defina correção, validação, rollback e prevenção.
 
 ## Guardrails

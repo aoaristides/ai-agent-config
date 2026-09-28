@@ -4,12 +4,13 @@
 require 'fileutils'
 require 'optparse'
 require 'tempfile'
+require_relative 'context_compiler'
 require_relative 'validate_structure'
 
 module AgentInstallation
   BEGIN_MARK = '<!-- ai-agent-config:begin -->'
   END_MARK = '<!-- ai-agent-config:end -->'
-  AGENTS = %w[codex claude cursor gemini antigravity].freeze
+  AGENTS = %w[codex claude cursor antigravity].freeze
 
   def self.run(args)
     options = { apply: false, agents: AGENTS }
@@ -31,16 +32,19 @@ module AgentInstallation
       raise ArgumentError, 'o projeto de destino deve existir'
     end
     base = options[:project] ? File.realpath(options[:project]) : Dir.home
-    core = File.read(File.join(root, 'context/agent-core.md'))
-    context = "#{BEGIN_MARK}\n#{core}\nRaiz local do contexto portátil: `#{root}`.\n" \
-      "Destino padrão das trilhas pessoais: `#{root}/learning/`; o pedido do usuário prevalece.\n#{END_MARK}\n"
+    context_for = lambda do |agent|
+      adapter = { 'cursor' => 'codex' }.fetch(agent, agent)
+      compiled = ContextCompiler.render(root: root, adapter: adapter, root_label: root)
+      "#{BEGIN_MARK}\n#{compiled}\nDestino padrão das trilhas pessoais: `#{root}/learning/`; " \
+        "o pedido do usuário prevalece.\n#{END_MARK}\n"
+    end
     edits = {}
     links = {}
     skills = Dir.children(File.join(root, 'skills')).sort.select { |n| File.directory?(File.join(root, 'skills', n)) }
     options[:agents].each do |agent|
       if options[:user]
         skill_path = { 'codex' => '.agents/skills', 'claude' => '.claude/skills',
-                       'cursor' => '.agents/skills', 'gemini' => '.agents/skills',
+                       'cursor' => '.agents/skills',
                        'antigravity' => '.gemini/config/skills' }.fetch(agent)
         # Não crie uma segunda descoberta para os links legados já usados pelo Codex.
         if agent == 'codex' && skills.any? { |n| same_link?(File.join(base, '.codex/skills', n), File.join(root, 'skills', n)) }
@@ -48,24 +52,24 @@ module AgentInstallation
           puts '[install-agents] Codex: reutilizando diretório legado já conectado à fonte.'
         end
         rule_path = { 'codex' => '.codex/AGENTS.md', 'claude' => '.claude/CLAUDE.md',
-                      'gemini' => '.gemini/GEMINI.md', 'antigravity' => '.gemini/GEMINI.md' }[agent]
+                      'antigravity' => '.gemini/GEMINI.md' }[agent]
         if agent == 'cursor'
           puts '[install-agents] Cursor: skills pessoais; use --project para instalar regras de projeto.'
         end
       else
         skill_path = agent == 'claude' ? '.claude/skills' : '.agents/skills'
         rule_path = { 'codex' => 'AGENTS.md', 'claude' => 'CLAUDE.md', 'cursor' => 'AGENTS.md',
-                      'gemini' => 'GEMINI.md', 'antigravity' => '.agents/rules/ai-agent-config.md' }.fetch(agent)
+                      'antigravity' => '.agents/rules/ai-agent-config.md' }.fetch(agent)
       end
       skills.each { |name| links[File.join(base, skill_path, name)] = File.join(root, 'skills', name) }
       next unless rule_path
       target = File.join(base, rule_path)
-      # Claude e Gemini recebem imports nativos; Codex/Cursor recebem o núcleo expandido.
-      if options[:project] && %w[claude gemini].include?(agent)
-        edits[File.join(base, 'AGENTS.md')] = context
+      # Claude recebe import nativo; os demais recebem o núcleo expandido.
+      if options[:project] && agent == 'claude'
+        edits[File.join(base, 'AGENTS.md')] = context_for.call('codex')
         edits[target] = "#{BEGIN_MARK}\n@AGENTS.md\n#{END_MARK}\n"
       else
-        edits[target] = context
+        edits[target] = context_for.call(agent)
       end
     end
     planned = []
@@ -123,7 +127,7 @@ module AgentInstallation
     end
     puts '[install-agents] Concluído. Abra nova sessão e confira skills, regras e eventuais aliases duplicados do host.'
     0
-  rescue ArgumentError, OptionParser::ParseError, SystemCallError => e
+  rescue ArgumentError, ContextCompiler::ConfigError, OptionParser::ParseError, SystemCallError => e
     warn "[install-agents] #{e.message}"
     1
   end

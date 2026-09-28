@@ -4,6 +4,10 @@ Fonte canônica: este repositório. As skills são autossuficientes; recursos do
 repositório central e outras skills são opcionais. O pacote da engenharia inclui
 suas referências locais. Os ZIPs não transportam o cofre nem as trilhas pessoais.
 
+O contexto compartilhado dos hosts é compilado por
+`config/context-manifest.yml`. `scripts/install-agents.rb` usa o mesmo renderer
+dos artefatos em `adapters/`; não mantenha cópias independentes por host.
+
 ## Instalar sem sobrescrever configuração existente
 
 Pré-requisitos: Ruby com YAML (o mesmo usado pelo empacotador), Bash e permissões
@@ -13,7 +17,7 @@ máquina, clone a fonte e execute ali. Não leve links absolutos para ambientes 
 Na raiz da fonte, visualize o plano de instalação pessoal:
 
 ```bash
-ruby scripts/install-agents.rb --user --agents codex,claude,gemini,antigravity
+ruby scripts/install-agents.rb --user --agents codex,claude,antigravity
 ```
 
 Para aplicá-lo, acrescente `--apply`. Em um projeto consumidor existente:
@@ -35,7 +39,6 @@ plano após resolver a causa. Não há promessa de transação entre vários arq
 | Codex | .agents/skills | AGENTS.md com núcleo expandido |
 | Claude Code | .claude/skills | CLAUDE.md importa AGENTS.md |
 | Cursor | .agents/skills | AGENTS.md com núcleo expandido |
-| Gemini CLI | .agents/skills | GEMINI.md importa AGENTS.md |
 | Antigravity | .agents/skills | .agents/rules/ai-agent-config.md |
 
 No Antigravity, verifique no painel Rules se a regra foi reconhecida e marque
@@ -43,11 +46,31 @@ Always On. O instalador não afirma que escrever Markdown configurou a ativaçã
 na versão instalada. Versões antigas podem usar .agent/rules e .agent/skills;
 confira os caminhos na UI antes de optar por um adaptador legado.
 
-No escopo pessoal, Codex/Gemini/Cursor usam .agents/skills, Claude usa
+No escopo pessoal, Codex/Cursor usam .agents/skills, Claude usa
 .claude/skills e Antigravity usa .gemini/config/skills segundo a documentação
 consultada. O Codex reutiliza .codex/skills quando encontra ali links desta fonte.
 Cursor pessoal instala skills; regras são integradas por projeto. Hosts podem
 exibir aliases duplicados ao descobrir vários diretórios; confirme o alvo real.
+
+## Antigravity e retirada do Gemini CLI
+
+Gemini CLI foi retirado do escopo por decisão do usuário em 2026-09-08, após
+o serviço recusar o cliente no login individual apesar do sucesso no navegador.
+O instalador rejeita `--agents gemini`. Isso não desinstala o executável nem
+remove credenciais ou arquivos existentes de outros projetos.
+
+Antigravity permanece suportado: regras pessoais em `~/.gemini/GEMINI.md`
+e sete symlinks em `~/.gemini/config/skills/`. Esses caminhos devem ser
+preservados; o nome `.gemini` não significa uso exclusivo pelo Gemini CLI.
+O `GEMINI.md` da raiz é orientação local para Antigravity, não uma cópia da
+configuração pessoal.
+
+Nas sessões verificadas, o acesso fora do workspace foi liberado em Settings
+→ General → File Access → Agent Non-Workspace File Access. Essa opção amplia
+o acesso a arquivos externos, não apenas ao cofre, nem apenas para leitura.
+Como alternativa de menor escopo, inclua o repositório e o cofre nas pastas
+do workspace e mantenha a opção desativada. Confirme sempre a leitura efetiva
+da skill, do índice e do protocolo em uma nova sessão.
 
 ## Contexto e autoridade
 
@@ -57,6 +80,14 @@ atualizar o núcleo. O cofre padrão pode ser substituído por um caminho inform
 pelo usuário ou por AI_AGENT_VAULT (convenção deste repositório, não opção nativa
 dos agentes). Nenhum caminho concede acesso fora do sandbox.
 
+Nos perfis pessoais, o bloco gerenciado é a fonte canônica de roteamento,
+consulta ao cofre e tratamento de evidências. O instalador preserva preferências
+fora desse bloco; não edite cópias do núcleo individualmente por host. Depois
+de atualizar a fonte, revise o plano `--user --agents codex,claude,antigravity`
+e aplique-o com `--apply`. Regras de projetos consumidores também precisam ser
+atualizadas nos respectivos destinos. Backups anteriores exigem revisão antes
+de outra aplicação; nunca os apague automaticamente para desbloquear o comando.
+
 O README/AGENTS deste repositório orientam sua manutenção. Os adaptadores dos
 projetos consumidores levam somente o núcleo compartilhado. Eles não mandam
 executar scripts de manutenção do ai-agent-config em outros projetos.
@@ -64,8 +95,17 @@ executar scripts de manutenção do ai-agent-config em outros projetos.
 ## Verificações reproduzíveis
 
 ```bash
+ruby scripts/sync-platforms.rb
+ruby scripts/check-context-drift.rb
 ./scripts/validate-structure.sh
 ruby scripts/test-integration.rb
+```
+
+O primeiro comando é somente plano. Use `--apply` para sincronizar e repita o
+check de drift. O renderer também pode ser inspecionado sem escrita:
+
+```bash
+ruby scripts/render-agent-context.rb --adapter codex
 ```
 
 Os testes cobrem YAML inválido, campos/tipos/nomes inválidos, recursos ausentes,
@@ -78,8 +118,13 @@ versão, prompt, skill selecionada, arquivos lidos, resposta e critério de acei
 Não registre credenciais nem invente sucesso quando rede, autenticação ou trust
 impedirem o teste. Sessões devem ser somente leitura; nenhum caso exige produção.
 
+Consulte a [matriz de validação](../tests/session-results.md) antes de afirmar
+conclusão. Distinga resultados históricos da fonte atual: após mudar instruções,
+repita os casos afetados em novas conversas. Aprovação por chamada explícita não
+resolve falha anterior de seleção automática; pacotes válidos não comprovam
+upload nem funcionamento isolado.
+
 Fontes verificadas em 2026-09-08: [Codex](https://learn.chatgpt.com/docs/build-skills),
 [Claude](https://code.claude.com/docs/en/memory),
 [Cursor](https://cursor.com/help/customization/skills),
-[Gemini](https://geminicli.com/docs/cli/using-agent-skills/),
 [Antigravity](https://antigravity.google/docs/skills).

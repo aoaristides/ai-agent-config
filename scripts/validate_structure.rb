@@ -4,6 +4,7 @@
 require 'json'
 require 'yaml'
 require 'pathname'
+require_relative 'context_compiler'
 
 module StructureValidation
   SLUG = /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/
@@ -82,13 +83,23 @@ module StructureValidation
       errors << "nome de tópico inválido: #{name}" unless name.match?(SLUG)
       TOPIC_FILES.each { |file| check_file.call("learning/#{name}/#{file}") }
     end
-    Dir.glob(File.join(root, '{knowledge,profiles,templates,projects,prompts}', '**', '*.md')).each do |path|
+    Dir.glob(File.join(root, '{knowledge,profiles,templates,projects,prompts,core,roles,workflows,context-packs,adapters}', '**', '*.md')).each do |path|
       check_file.call(path.delete_prefix(root + '/'))
     end
-    %w[package-skills.sh create-learning-topic.sh validate-structure.sh].each do |name|
+    begin
+      ContextCompiler.outputs(root).each do |adapter, output|
+        expected = ContextCompiler.render(root: root, adapter: adapter, root_label: '<AI_AGENT_CONFIG_ROOT>')
+        actual = File.file?(output) ? File.read(output, encoding: 'UTF-8') : nil
+        errors << "adapter fora de sincronia: #{adapter}" unless actual == expected
+      end
+    rescue ContextCompiler::ConfigError => e
+      errors << "compilador de contexto inválido: #{e.message}"
+    end
+    %w[package-skills.sh create-learning-topic.sh validate-structure.sh render-agent-context.rb
+       check-context-drift.rb sync-platforms.rb].each do |name|
       errors << "script não executável: #{name}" unless File.executable?(File.join(root, 'scripts', name))
     end
-    %w[CLAUDE.md GEMINI.md].each do |file|
+    %w[CLAUDE.md].each do |file|
       path = File.join(root, file)
       unless File.file?(path) && File.read(path).match?(/^@(?:\.\/)?AGENTS\.md\s*$/)
         errors << "importação de AGENTS.md ausente: #{file}"

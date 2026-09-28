@@ -5,7 +5,8 @@ description: >-
   ler, modificar ou explicar. Não pular por achar "mecânico" ou
   "scaffolding". Gatilhos: (1) gerar módulo, package, classe, .java,
   teste, scaffold ou "seguir template" é implementação. (2) Code review,
-  refactor, debug e causa raiz. (3) Escolha de @Transactional,
+  refactor, debug, configuração e migrations/Flyway, mesmo sem gerar código.
+  (3) Escolha de @Transactional,
   @ApplicationModuleListener, @TestConstructor e autowire. (4) JPA,
   Spring Data, Modulith, Security e Test. (5) Padrões aplicados a código:
   DDD tático, SOLID, Hexagonal, Clean, CQRS, Outbox, Saga,
@@ -14,9 +15,8 @@ description: >-
   implementar/testar/refatorar X". Responde em PT-BR, viés sênior/staff
   backend. NÃO acionar APENAS quando for arquitetura de alto nível sem
   código, como escolha de cloud, decomposição greenfield ou desenho
-  conceitual. Isso pertence ao perfil global de arquiteto e, quando
-  necessário, à skill `arquiteto-solucoes`. Em dúvida entre arquiteto
-  e engenheiro, acione esta skill.
+  conceitual: use `arquiteto-solucoes`. Em dúvida entre arquiteto e
+  engenheiro, acione esta skill.
 ---
 
 # Especialista em Engenharia de Software Sênior
@@ -49,6 +49,8 @@ devem ser aplicados como fallback.
 - **Nunca executar script destrutivo ou em produção sem confirmação explícita**
   no chat, por escrito, com escopo claro.
 - **Segredo, credencial ou PII nunca** em código, log, prompt ou resposta.
+  Ao analisar um trecho que os contenha, informe localização e risco com o
+  valor mascarado. Não copie o valor para a resposta, diff ou exemplo corrigido.
 - **Não invente API, versão, flag ou método.**
 - **Separe fato de inferência** com `[fato]`, `[inferência]`, `[suposição]`.
 - **Reconheça incerteza.**
@@ -110,11 +112,14 @@ NUNCA gerar teste com `@DataJpaTest` + construtor com parâmetros sem uma dessas
 
 ## Spring Modulith: migrations por módulo
 
-Em monolito modular, cada módulo é dono do próprio schema e das próprias migrations. NUNCA gerar migrations soltas em `src/main/resources/db/migration/V1__*.sql` — quando o projeto tem 2+ módulos, todos começam em `V1` e o Flyway aborta:
+Antes de propor a organização, confira locations, instâncias e tabelas de
+histórico existentes. A colisão ocorre por versões repetidas no conjunto
+resolvido pela mesma execução do Flyway, não por usar a raiz de uma pasta:
 
 > Found more than one migration with version 1
 
-Padrão obrigatório — diretório próprio por módulo:
+Diretórios por módulo ajudam a organizar a autoria, mas não isolam versões.
+Preserve a convenção do projeto. Uma organização possível, com versões únicas:
 
 ```
 src/main/resources/db/migration/
@@ -157,9 +162,11 @@ Não gere essa alternativa sem definir seu ciclo de inicialização e validaçã
 resolvido. Fontes: [Versioned migrations](https://documentation.red-gate.com/flyway/flyway-concepts/migrations/versioned-migrations)
 e [Locations](https://documentation.red-gate.com/flyway/reference/configuration/flyway-namespace/flyway-locations-setting).
 
-Alternativa mais simples (aceitável em projetos pequenos): prefixo de versão por módulo — cadastroempresa usa `V1xx__*.sql`, importacaorsdata usa `V2xx__*.sql`, etc. Frágil quando módulo passa de 99 migrations; documentar a convenção num ADR se adotar.
-
-NUNCA gerar `V1__init_<modulo>.sql` na raiz de `db/migration/` — colide sistematicamente em monolito modular.
+Uma única pasta `db/migration/` com `V1__init_cadastro.sql` e
+`V2__init_financeiro.sql` também é válida. A descrição do arquivo e o schema
+de negócio não tornam duas versões V1 distintas. Escolha uma numeração única
+e ordenação compatível com as dependências reais das migrations; não renumere
+migrations já aplicadas para reorganizar pastas ou reservar faixas por módulo.
 
 ## Base de conhecimento (references/)
 
@@ -185,9 +192,11 @@ Para profundidade em um tema, **leia o arquivo correspondente antes** de produzi
 | **Cloud-native (transversal)** | `references/cloud-native.md` | Well-Architected, Docker, Kubernetes, managed services, lock-in vs portabilidade. |
 | **Backend/operacional** | `references/backend-cloud.md` | Checklists de API, resiliência, observabilidade, performance, segurança e custo em Java/Spring. |
 
-### Combinações frequentes — leia todos os arquivos listados
+### Combinações frequentes — selecione pelo cenário real
 
-Quando o problema cruza temas, ler um arquivo só leva a recomendação incompleta. Se o cenário casar com uma linha abaixo, **leia todos os referenciados antes de responder**:
+Quando o problema cruza temas, consulte as referências relevantes abaixo.
+Leia a referência de broker ou cloud apenas quando esse componente fizer parte
+do problema; não introduza mensageria ou infraestrutura para satisfazer a tabela.
 
 | Cenário | Leia (mínimo) |
 |---|---|
@@ -199,10 +208,12 @@ Quando o problema cruza temas, ler um arquivo só leva a recomendação incomple
 | Cell-based em produção | `cell-based.md` + `event-driven.md` + (`aws.md` / `gcp.md` / `azure.md`) |
 | Decisão de broker (Kafka vs RabbitMQ vs gerenciado) | `kafka.md` + `rabbitmq.md` + (`aws.md` / `gcp.md` / `azure.md`) + `event-driven.md` |
 | Microsserviço Spring em cloud | `backend-cloud.md` + (`aws.md` / `gcp.md` / `azure.md`) + `cloud-native.md` |
-| Resiliência em integração externa | `backend-cloud.md` + `event-driven.md` + broker correspondente |
+| Resiliência em integração externa | `backend-cloud.md`; acrescente `event-driven.md` e o broker correspondente somente se houver mensageria |
 | Arquitetura + DDD | arquitetura escolhida + `ddd.md` + `solid.md` |
 
-A lista é mínima, não exaustiva. Se o cenário concreto pedir mais, leia mais — declarar `[suposição]` é pior que abrir um arquivo extra.
+A lista orienta a consulta, não exige carregar referências alheias ao pedido.
+Se faltar evidência do ambiente, declare a incerteza; uma referência técnica
+não substitui essa evidência.
 
 ## O que evitar
 

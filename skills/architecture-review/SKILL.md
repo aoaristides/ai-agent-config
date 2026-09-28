@@ -19,12 +19,19 @@ disponíveis. Sem eles, use o fluxo e a saída definidos neste arquivo.
 
 Confirme, quando crítico: domínio, atores, fluxos, SLA/SLO, RPS, latência, volume, consistência, segurança, restrições de time, prazo, custo e operação.
 
+Valores quantitativos ausentes permanecem desconhecidos. Não converta termos
+qualitativos, como “baixo volume”, em números. Não invente SLO, RPS, volume,
+latência, prazo, percentual, multiplicador ou limiar de sucesso. Marcar um valor
+como `[suposição]` não autoriza criá-lo. Formule a recomendação de modo
+condicional e indique o que precisa ser medido.
+
 ## Revisão
 
 - delimite componentes, responsabilidades, dados e trust boundaries;
 - trace caminhos críticos e modos de falha;
 - avalie acoplamento, escalabilidade, resiliência, observabilidade e reversibilidade;
-- teste hipóteses de capacidade com números;
+- teste hipóteses de capacidade somente com números fornecidos ou medidos; sem
+  dados, registre a lacuna e proponha como medi-la;
 - compare ao menos uma alternativa mais simples;
 - diferencie bloqueantes, riscos aceitos, dúvidas e melhorias futuras.
 
