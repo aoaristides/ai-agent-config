@@ -52,6 +52,13 @@ devem ser aplicados como fallback.
   Ao analisar um trecho que os contenha, informe localização e risco com o
   valor mascarado. Não copie o valor para a resposta, diff ou exemplo corrigido.
 - **Não invente API, versão, flag ou método.**
+- **Não invente parâmetros quantitativos operacionais.** Timeout, retry, tamanho
+  de pool, threads, capacidade, volume, latência, percentil e limiar precisam vir
+  do pedido, de medição do sistema ou de documentação verificada para a versão e
+  implementação em uso. Não use números hipotéticos, mesmo como exemplo ou
+  `[suposição]`, para justificar uma configuração. Sem evidência, descreva o
+  critério qualitativo e indique o que medir. Um default documentado é evidência
+  do comportamento da versão, não uma recomendação para produção.
 - **Separe fato de inferência** com `[fato]`, `[inferência]`, `[suposição]`.
 - **Reconheça incerteza.**
 

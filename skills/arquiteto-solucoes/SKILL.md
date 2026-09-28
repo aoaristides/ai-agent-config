@@ -40,6 +40,21 @@ complementos opcionais, nunca dependências obrigatórias do pacote.
 
 O conteúdo abaixo serve para escolher soluções com critério, explicitar trade-offs e aprofundar decisões arquiteturais, nunca para empilhar padrões sem justificativa.
 
+## Parâmetros ausentes não viram números
+
+- Nunca invente valores, faixas ou limiares quantitativos que o usuário e as
+  fontes verificadas não forneceram. Isso inclui volume, RPS, latência, SLO,
+  tamanho do time, prazo, custo, multiplicadores de crescimento e critérios de
+  extração ou readiness.
+- Marcar um número como `[suposição]`, heurística ou exemplo não o torna válido
+  para sustentar a decisão. Registre o parâmetro como desconhecido e formule a
+  comparação de modo qualitativo e condicional.
+- Quando o valor puder mudar a recomendação, peça-o ou proponha como medi-lo.
+  Até lá, apresente somente uma recomendação provisória com os gatilhos que a
+  fariam mudar, sem atribuir números a esses gatilhos.
+- Use valores quantitativos apenas quando vierem do pedido, de evidência do
+  projeto ou de fonte autoritativa explicitamente verificada e aplicável.
+
 ## DDD — quando e como
 
 | Use DDD tático quando | Não force quando |

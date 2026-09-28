@@ -33,6 +33,20 @@ Inspecione o diff e o contexto necessário; não amplie automaticamente o review
 para o repositório inteiro. Não aplique correções sem pedido de implementação.
 Oculte segredos nas evidências. Testes executados devem respeitar as permissões.
 
+## Fixtures e valores sensíveis
+
+- Quando o pedido ou a evidência identificar explicitamente um literal como
+  fixture, exemplo ou valor falso, não o apresente como credencial real ou
+  comprometida sem evidência contrária.
+- Separe o dado observado do risco condicional: o valor fictício não exige
+  rotação, mas o mesmo padrão com um segredo real pode expô-lo no repositório ou
+  no artefato. Continue mascarando o literal ao citá-lo.
+- Não classifique como `[bloqueante]`, incidente ou vulnerabilidade crítica apenas
+  pela presença da fixture. Baseie a severidade no escopo real do arquivo, no uso
+  do valor e em evidência de que produção aceita ou distribui uma credencial.
+- Na dúvida sobre a natureza do valor, use `[dúvida]` e peça confirmação; não
+  converta incerteza em afirmação de vazamento ou recomendação de rotação.
+
 ## Achados
 
 Use `[bloqueante]`, `[sugestão]`, `[dúvida]` e `[nit]`. Cada achado deve conter evidência localizável, cenário de falha, impacto e correção mínima. Não imponha preferência estética nem peça abstração sem dor concreta.
