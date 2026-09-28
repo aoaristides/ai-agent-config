@@ -20,8 +20,10 @@ com o caminho absoluto do projeto. O núcleo está em
 nativa, e os demais adaptadores recebem instruções no formato do host.
 Gemini CLI está fora do escopo; a integração Google mantida é o Antigravity.
 
-Validação completa da fonte: `./scripts/validate-structure.sh`.
-Regressões e instalação isolada: `ruby scripts/test-integration.rb`.
+Validação estrutural da fonte: `./scripts/validate-structure.sh`.
+Regressões e instalação isolada: `ruby scripts/test-integration.rb`. Depois de
+alterar skills, execute também `./scripts/package-skills.sh`. O fluxo completo
+de sincronização e validação está na seção [Compilador de contexto](#compilador-de-contexto).
 Sessões reais: [casos e critérios de aceite](tests/session-cases.md).
 Estado por host e pendências: [matriz de validação](tests/session-results.md).
 O sucesso desses testes estruturais não certifica uma sessão real de modelo.
@@ -32,7 +34,8 @@ O sucesso desses testes estruturais não certifica uma sessão real de modelo.
 - `roles/`, `workflows/` e `context-packs/` — contexto sob demanda.
 - `config/context-manifest.yml` — composição canônica dos adaptadores.
 - `adapters/` — templates e artefatos gerados para cada host.
-- `AGENTS.md` e `CLAUDE.md` — pontos de entrada compatíveis para agentes.
+- `AGENTS.md`, `CLAUDE.md` e `GEMINI.md` — pontos de entrada compatíveis para
+  Codex, Claude Code e Antigravity.
 - `profiles/` — contexto técnico e preferências relativamente estáveis.
 - `skills/` — comportamento especializado; cada skill tem um `SKILL.md`.
 - `knowledge/` — modelos mentais e checklists técnicos reutilizáveis.
@@ -133,7 +136,11 @@ uma nova sessão e reinicie o agente caso a alteração não apareça.
 Para conferir os links existentes:
 
 ```bash
-ls -l ~/.claude/skills/ ~/.codex/skills/
+ls -l \
+  ~/.claude/skills/ \
+  ~/.agents/skills/ \
+  ~/.codex/skills/ \
+  ~/.gemini/config/skills/
 ```
 
 [fato] A documentação atual do Codex confirma o suporte a pastas de skills via
@@ -256,18 +263,22 @@ projetos, preferências confirmadas, gotchas e aprendizados observados. Não cop
 automaticamente notas entre os dois locais: defina a autoridade antes de
 registrar para evitar divergência.
 
-## Árvore do segundo cérebro
+## Árvore do repositório
 
 ```text
 ai-agent-config/
 ├── AGENTS.md
 ├── CLAUDE.md
+├── GEMINI.md
+├── context-index.md
 ├── config/context-manifest.yml
+├── context/
 ├── core/
 ├── roles/
 ├── workflows/
 ├── context-packs/
 ├── adapters/
+├── docs/
 ├── profiles/
 ├── skills/
 │   ├── arquiteto-solucoes/
@@ -287,7 +298,8 @@ ai-agent-config/
 ├── templates/
 ├── projects/
 ├── prompts/
-└── scripts/
+├── scripts/
+└── tests/
 ```
 
 ## Criar uma nova trilha
