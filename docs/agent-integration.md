@@ -8,6 +8,12 @@ O contexto compartilhado dos hosts é compilado por
 `config/context-manifest.yml`. `scripts/install-agents.rb` usa o mesmo renderer
 dos artefatos em `adapters/`; não mantenha cópias independentes por host.
 
+A plataforma multiagente é definida em `agents/catalog.yml`. Os adapters carregam
+somente `core/agent-platform.md`, que aponta para contratos sob demanda. Não há
+cópias específicas dos oito agentes por host. Quando o host não suportar
+delegação nativa, execute os contratos sequencialmente e preserve o mesmo
+protocolo de handoff.
+
 ## Instalar sem sobrescrever configuração existente
 
 Pré-requisitos: Ruby com YAML (o mesmo usado pelo empacotador), Bash e permissões
@@ -29,10 +35,19 @@ ruby scripts/install-agents.rb --project /caminho/absoluto/do/projeto
 O plano não escreve. A aplicação valida primeiro os conflitos, mantém links
 corretos, recusa arquivos/diretórios que ocupariam o lugar de uma skill, e
 acrescenta um bloco identificado às regras. Instruções anteriores são preservadas.
-Se alterar uma regra existente, cria um backup `.ai-agent-config.bak`. Um backup
-prévio nunca é sobrescrito: revise e guarde-o antes de atualizar novamente.
+Na primeira alteração de um arquivo sem bloco gerenciado, cria um backup
+`.ai-agent-config.bak`. Um backup prévio nunca é sobrescrito: revise e guarde-o
+antes de atualizar novamente. Depois que o bloco existe, atualizações regeneram
+somente esse bloco e preservam o backup original; editar manualmente dentro do
+bloco não cria outro backup e será substituído na próxima aplicação.
 Uma falha durante a aplicação pode deixar parte da instalação pronta; repita o
 plano após resolver a causa. Não há promessa de transação entre vários arquivos.
+
+Os blocos gerados registram o caminho absoluto da fonte local. Não versione uma
+regra pessoal ou de projeto gerada e espere que funcione em outra máquina: clone
+a fonte no destino e execute o instalador novamente. Essa informação também pode
+revelar o nome do usuário ou a organização do filesystem; revise o diff antes de
+publicar arquivos de configuração gerados.
 
 | Host | Skills de projeto | Regras |
 | --- | --- | --- |

@@ -1,0 +1,63 @@
+version: 1
+agents:
+  orchestrator:
+    definition: agents/orchestrator/AGENT.md
+    role: roles/tech-lead.brief.md
+    workflows:
+      - workflows/delivery-orchestration.md
+    skills: []
+  product-manager:
+    definition: agents/product-manager/AGENT.md
+    role: roles/product-manager.brief.md
+    workflows:
+      - workflows/product-discovery.md
+    skills: []
+  architect:
+    definition: agents/architect/AGENT.md
+    role: roles/architect.brief.md
+    workflows:
+      - workflows/architecture-decision.md
+      - workflows/architecture-review.md
+      - workflows/adr.md
+    skills:
+      - arquiteto-solucoes
+      - architecture-review
+  software-engineer:
+    definition: agents/software-engineer/AGENT.md
+    role: roles/senior-engineer.brief.md
+    workflows:
+      - workflows/feature-development.md
+      - workflows/bugfix.md
+      - workflows/refactoring.md
+      - workflows/incident-debug.md
+    skills:
+      - engenheiro-software-senior
+      - troubleshooting
+  tester:
+    definition: agents/tester/AGENT.md
+    role: roles/tester.brief.md
+    workflows:
+      - workflows/test-validation.md
+    skills:
+      - engenheiro-software-senior
+  code-reviewer:
+    definition: agents/code-reviewer/AGENT.md
+    role: roles/reviewer.brief.md
+    workflows:
+      - workflows/code-review.md
+    skills:
+      - code-review
+      - engenheiro-software-senior
+  security-engineer:
+    definition: agents/security-engineer/AGENT.md
+    role: roles/security-engineer.brief.md
+    workflows:
+      - workflows/security-review.md
+    skills: []
+  performance-engineer:
+    definition: agents/performance-engineer/AGENT.md
+    role: roles/performance-engineer.brief.md
+    workflows:
+      - workflows/performance-assessment.md
+    skills:
+      - troubleshooting

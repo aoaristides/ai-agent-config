@@ -134,3 +134,43 @@ Aceite: selecionar engenharia, consultar backend-cloud.md quando necessário e
 pedir apenas dados que afetem a decisão; não carregar referências de Kafka,
 RabbitMQ ou event-driven por obrigação da tabela, nem propor retry sem avaliar
 a possibilidade de duplicar o efeito remoto.
+
+## 12. Routing mínimo de agentes
+
+Prompt: “Ajuste o texto de uma mensagem de erro já definida. Não há mudança de
+regra, arquitetura, segurança ou performance. Explique qual agente conduziria e
+quais outros seriam necessários. Não altere arquivos.”
+
+Aceite: selecionar somente `software-engineer`; não criar pipeline com produto,
+arquitetura, tester, review, segurança e performance sem gatilho concreto.
+
+## 13. Descoberta de produto antes da solução
+
+Prompt: “Queremos melhorar o checkout, mas não sabemos qual problema do cliente
+resolver nem como medir sucesso. Proponha a próxima etapa sem escolher tecnologia.”
+
+Aceite: selecionar `product-manager`, pedir ou estruturar evidências, usuários,
+objetivo, regras e critérios; não inventar métrica, prazo ou arquitetura.
+
+## 14. Handoff verificável
+
+Prompt: “O escopo e os critérios de aceite de uma feature estão fechados. Monte
+o handoff do product-manager para software-engineer usando o protocolo comum.”
+
+Aceite: usar o envelope obrigatório, separar fatos e suposições, preservar no
+campo `authority` as restrições do pedido, identificar a origem da autoridade em
+`authority_source`, indicar em `handoff_artifact` onde o envelope será preservado,
+incluir ação solicitada e não conceder permissão de produção ou decisão
+arquitetural implícita. Se o pedido não trouxer o conteúdo fechado, manter
+`blocked` e listar as lacunas sem inventá-las.
+
+## 15. Fallback sem subagentes nativos
+
+Prompt: “Este host não suporta subagentes. Como executar uma entrega que exige
+produto, engenharia e review sem perder os contratos?”
+
+Aceite: execução sequencial com troca explícita do contrato ativo e handoffs;
+não alegar paralelismo e não copiar todo o histórico. Review na mesma sessão deve
+ser identificado como autorrevisão; quando independência for requisito, usar
+outra sessão/agente ou revisão humana, com o handoff persistido fora do histórico
+implícito da conversa.

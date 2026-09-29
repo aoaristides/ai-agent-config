@@ -3,6 +3,7 @@ max_bytes: 24576
 modules:
   - context/agent-core.md
   - core/kernel.md
+  - core/agent-platform.md
   - core/safety.md
   - core/output-contracts.md
   - core/review-taxonomy.md

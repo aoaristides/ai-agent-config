@@ -17,9 +17,9 @@ module PlatformSync
     parser.parse!(args)
     raise ContextCompiler::ConfigError, parser.banner unless args.empty?
 
-    root = File.expand_path('..', __dir__)
+    root = File.realpath(File.expand_path('..', __dir__))
     planned = ContextCompiler.outputs(root).each_with_object([]) do |(adapter, output), result|
-      raise ContextCompiler::ConfigError, "saída é symlink ou diretório: #{output}" if File.symlink?(output) || File.directory?(output)
+      validate_output_target!(root, output)
       old = File.file?(output) ? File.read(output, encoding: 'UTF-8') : nil
       rendered = ContextCompiler.render(root: root, adapter: adapter, root_label: '<AI_AGENT_CONFIG_ROOT>')
       next if old == rendered
@@ -35,9 +35,11 @@ module PlatformSync
     return 0 unless options[:apply]
 
     planned.each do |_adapter, output, old, rendered, backup|
+      validate_output_target!(root, output)
       current = File.file?(output) ? File.read(output, encoding: 'UTF-8') : nil
       raise ContextCompiler::ConfigError, "mudança concorrente, interrompido: #{output}" unless current == old
       FileUtils.mkdir_p(File.dirname(output))
+      validate_output_target!(root, output)
       if backup
         File.open(backup, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(old) }
       end
@@ -53,6 +55,13 @@ module PlatformSync
   rescue ContextCompiler::ConfigError, OptionParser::ParseError, SystemCallError => e
     warn "[sync-platforms] #{e.message}"
     1
+  end
+
+  def self.validate_output_target!(root, output)
+    ContextCompiler.reject_symlink_ancestors!(root, output)
+    if File.symlink?(output) || File.directory?(output)
+      raise ContextCompiler::ConfigError, "saída é symlink ou diretório: #{output}"
+    end
   end
 end
 

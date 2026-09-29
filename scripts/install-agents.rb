@@ -31,7 +31,7 @@ module AgentInstallation
     if options[:project] && !File.directory?(options[:project])
       raise ArgumentError, 'o projeto de destino deve existir'
     end
-    base = options[:project] ? File.realpath(options[:project]) : Dir.home
+    base = options[:project] ? File.realpath(options[:project]) : File.realpath(Dir.home)
     context_for = lambda do |agent|
       adapter = { 'cursor' => 'codex' }.fetch(agent, agent)
       compiled = ContextCompiler.render(root: root, adapter: adapter, root_label: root)
@@ -77,14 +77,15 @@ module AgentInstallation
       next if same_link?(target, source)
       raise ArgumentError, "conflito, preservado: #{target}" if File.exist?(target) || File.symlink?(target)
       reject_symlink_ancestors!(target, base)
-      planned << [:link, target, source, nil]
+      planned << [:link, target, source, nil, nil]
     end
     edits.each do |target, block|
       reject_symlink_ancestors!(target, base)
       raise ArgumentError, "arquivo de regras é symlink ou diretório, preservado: #{target}" if File.symlink?(target) || File.directory?(target)
-      old = File.file?(target) ? File.read(target) : nil
+      old = File.file?(target) ? File.read(target, encoding: 'UTF-8') : nil
       text = old || ''
-      if text.include?(BEGIN_MARK) || text.include?(END_MARK)
+      managed = text.include?(BEGIN_MARK) || text.include?(END_MARK)
+      if managed
         unless text.scan(BEGIN_MARK).length == 1 && text.scan(END_MARK).length == 1 && text.index(BEGIN_MARK) < text.index(END_MARK)
           raise ArgumentError, "bloco gerenciado ambíguo, preservado: #{target}"
         end
@@ -93,28 +94,31 @@ module AgentInstallation
         updated = text + (text.empty? ? '' : "\n\n") + block
       end
       next if updated == text
-      backup = target + '.ai-agent-config.bak'
-      if old && (File.exist?(backup) || File.symlink?(backup))
+      backup = old && !managed ? target + '.ai-agent-config.bak' : nil
+      if backup && (File.exist?(backup) || File.symlink?(backup))
         raise ArgumentError, "backup já existe, preservado: #{backup}"
       end
-      planned << [:rules, target, updated, old]
+      planned << [:rules, target, updated, old, backup]
     end
-    planned.each { |kind, target, _value, _old| puts "[install-agents] #{kind}: #{target}" }
+    planned.each { |kind, target, _value, _old, _backup| puts "[install-agents] #{kind}: #{target}" }
     puts "[install-agents] #{planned.length} alteração(ões); #{options[:apply] ? 'aplicando' : 'somente plano; use --apply'}."
     return 0 unless options[:apply]
-    planned.each do |kind, target, value, old|
+    planned.each do |kind, target, value, old, backup|
       FileUtils.mkdir_p(File.dirname(target))
+      reject_symlink_ancestors!(target, base)
       if kind == :link
         File.symlink(value, target) # Falha se outro processo criou o alvo após o plano.
       else
-        current = File.file?(target) ? File.read(target) : nil
-        raise ArgumentError, "mudança concorrente, interrompido: #{target}" unless current == old && !File.symlink?(target)
-        if old
-          backup = target + '.ai-agent-config.bak'
+        current = File.file?(target) ? File.read(target, encoding: 'UTF-8') : nil
+        unless current == old && !File.symlink?(target) && !File.directory?(target)
+          raise ArgumentError, "mudança concorrente, interrompido: #{target}"
+        end
+        if backup
           raise ArgumentError, "backup já existe, preservado: #{backup}" if File.exist?(backup) || File.symlink?(backup)
           File.open(backup, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |f| f.write(old) }
         end
         Tempfile.create(['.ai-agent-config-', '.tmp'], File.dirname(target)) do |temp|
+          temp.set_encoding(Encoding::UTF_8)
           temp.write(value)
           temp.flush
           File.chmod(old ? File.stat(target).mode & 0o777 : 0o644, temp.path)
@@ -139,10 +143,18 @@ module AgentInstallation
   end
 
   def self.reject_symlink_ancestors!(target, base)
-    parent = File.dirname(target)
-    while parent.start_with?(base + '/')
+    base = File.expand_path(base)
+    parent = File.dirname(File.expand_path(target))
+    loop do
+      unless parent == base || parent.start_with?(base + File::SEPARATOR)
+        raise ArgumentError, "diretório pai saiu da raiz de instalação: #{parent}"
+      end
       raise ArgumentError, "diretório pai é symlink; revise o destino: #{parent}" if File.symlink?(parent)
-      parent = File.dirname(parent)
+      break if parent == base
+
+      ancestor = File.dirname(parent)
+      raise ArgumentError, "diretório pai inválido: #{parent}" if ancestor == parent
+      parent = ancestor
     end
   end
 end

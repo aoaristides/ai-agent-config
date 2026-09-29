@@ -89,6 +89,21 @@ module ContextCompiler
     end
     path = File.expand_path(relative, root)
     raise ConfigError, "caminho fora da raiz: #{relative}" unless inside?(root, path)
+    reject_symlink_ancestors!(root, path)
+    path
+  end
+
+  def self.reject_symlink_ancestors!(root, path)
+    current = File.dirname(path)
+    loop do
+      raise ConfigError, "diretório ancestral fora da raiz: #{path}" unless inside?(root, current)
+      raise ConfigError, "diretório ancestral é symlink: #{current}" if File.symlink?(current)
+      break if current == root
+
+      parent = File.dirname(current)
+      raise ConfigError, "diretório ancestral inválido: #{current}" if parent == current
+      current = parent
+    end
     path
   end
 

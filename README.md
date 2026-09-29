@@ -1,7 +1,7 @@
 # AI Agent Config
 
-Configuração compartilhada e portátil para agentes de IA: perfis, skills,
-conhecimento técnico curado, trilhas de aprendizado, templates e contexto de
+Configuração compartilhada e portátil para agentes de IA: contratos de agentes,
+perfis, skills, conhecimento técnico curado, workflows, templates e contexto de
 projetos.
 
 ## Integração com os agentes
@@ -31,6 +31,7 @@ O sucesso desses testes estruturais não certifica uma sessão real de modelo.
 ## Estrutura e fonte canônica
 
 - `core/` e `context-index.md` — kernel, contratos globais e roteamento seletivo.
+- `agents/` — catálogo, contratos, routing e handoffs da plataforma local.
 - `roles/`, `workflows/` e `context-packs/` — contexto sob demanda.
 - `config/context-manifest.yml` — composição canônica dos adaptadores.
 - `adapters/` — templates e artefatos gerados para cada host.
@@ -50,6 +51,10 @@ O sucesso desses testes estruturais não certifica uma sessão real de modelo.
 - `scripts/sync-platforms.rb` — sincroniza adaptadores; `dry-run` por padrão.
 - `scripts/check-context-drift.rb` — falha quando a fonte e a saída divergem.
 - `dist/` — ZIPs gerados localmente, fora do versionamento.
+
+A fundação e seus trade-offs estão em
+[docs/agent-platform.md](docs/agent-platform.md). Agentes compõem roles,
+workflows e skills existentes; não mantêm cópias desse conhecimento.
 
 ## Compilador de contexto
 
@@ -177,10 +182,14 @@ chmod +x ./scripts/package-skills.sh
 ```
 
 [fato] O script encontra as subpastas diretamente em `skills/` que contêm
-`SKILL.md`, valida o frontmatter YAML e a presença de `name` e `description`,
-e recria o ZIP correspondente em `dist/`. Ele exclui arquivos como `.DS_Store`,
-metadados de Git/IDE e temporários. Essa validação não substitui a validação de
-upload do Claude.
+`SKILL.md`, rejeita qualquer symlink dentro do pacote, valida o frontmatter YAML
+e a presença de `name` e `description`, e recria o ZIP correspondente em
+`dist/`. ZIPs sem skill correspondente são movidos para uma subpasta recuperável
+em `dist/.stale/`, em vez de aparecerem como artefatos atuais. O empacotador
+rejeita destinos de saída por symlink e arquivos potencialmente sensíveis como
+`.env`, `.npmrc`, `.pypirc`, chaves privadas e certificados privados. Também
+exclui `.DS_Store`, metadados de Git/IDE e temporários. Essa
+validação não substitui a validação de upload do Claude.
 
 Com as skills atuais, é gerado um ZIP por subpasta válida de `skills/`, por
 exemplo:
@@ -274,6 +283,10 @@ ai-agent-config/
 ├── config/context-manifest.yml
 ├── context/
 ├── core/
+├── agents/
+│   ├── _shared/
+│   ├── catalog.yml
+│   └── <agent>/AGENT.md
 ├── roles/
 ├── workflows/
 ├── context-packs/

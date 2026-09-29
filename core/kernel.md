@@ -22,8 +22,9 @@ nem duplica o núcleo compartilhado.
 
 ## Modos de contexto
 
-`economical` é o padrão: use kernel, índice, uma role, um workflow e até dois
-packs. Não leia referências longas sem uma lacuna concreta.
+`economical` é o padrão: use kernel, índice, uma role, um workflow e inicialmente
+um único módulo adicional de projeto ou context pack. Expanda somente quando uma
+lacuna concreta impedir a tarefa.
 
 `deep` só é ativado por pedido explícito de análise ampla, modo profundo ou por
 risco que exija investigação adicional. Mesmo nesse modo, carregue referências
@@ -31,5 +32,6 @@ por tema; nunca a biblioteca inteira.
 
 ## Limite sugerido
 
-[suposição] Comece com kernel + índice + até três módulos. Expanda apenas quando
+[suposição] Comece com kernel + índice + até três módulos: role, workflow e um
+módulo adicional. Expanda apenas quando
 uma lacuna concreta impedir a tarefa; quantidade de arquivos não mede qualidade.
