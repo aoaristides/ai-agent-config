@@ -16,6 +16,8 @@ A plataforma adiciona uma camada `agents/` sobre as fontes atuais:
 pedido
   -> routing/context policy
   -> agent contract
+  -> model_profile
+  -> runtime model mapping
   -> role + workflow
   -> skills/packs/project sob demanda
   -> handoff verificável, se necessário
@@ -32,6 +34,8 @@ Os oito agentes iniciais são `orchestrator`, `product-manager`, `architect`,
 - `workflows/` continua definindo processo executável.
 - `context-index.md` continua como router humano e seletivo.
 - `config/context-manifest.yml` e o compiler continuam gerando os três adapters.
+- `models/profiles.yaml` define intenções de capacidade sem nomes de fornecedor;
+  `adapters/<runtime>/models.yaml` concentra os nomes concretos.
 - O instalador e os symlinks de skills continuam como mecanismo de distribuição;
   o instalador preserva o backup original ao atualizar blocos já gerenciados.
 
@@ -53,6 +57,31 @@ Os oito agentes iniciais são `orchestrator`, `product-manager`, `architect`,
   uma UI de execução.
 - Neutro: cada host mantém suas próprias capacidades de paralelismo e permissão;
   o protocolo comum preserva a semântica quando não houver subagentes nativos.
+
+## Evolução — seleção agnóstica de modelos
+
+Os contratos `AGENT.md` permanecem inalterados. Cada entrada de
+`agents/catalog.yml` declara apenas um `model_profile`. O resolver lê o mapping
+do runtime atual e retorna o primeiro candidato disponível na ordem
+`primary -> fallbacks`.
+
+```text
+software-engineer
+  -> coding-high
+  -> adapters/<runtime>/models.yaml
+  -> modelo concreto
+```
+
+Mappings ausentes e listas esgotadas falham explicitamente. O runtime precisa
+informar indisponibilidade concreta; a camada não troca modelo para esconder erro
+de autenticação, permissão, ferramenta, prompt ou qualidade.
+
+Cada adapter declara suas capabilities de execução. Codex usa seleção `exact`;
+Claude Code usa seleção `alias` e traduz o ID preferido para `host_selector`;
+Antigravity usa seleção `advisory`, pois a sessão validada não expôs
+materialização nativa de subagente com parâmetro de modelo. O resolver preserva
+os campos anteriores e acrescenta `host_selector`, `selection_mode` e
+`materializable` para impedir que resolução seja confundida com execução.
 
 ## Próximas etapas condicionais
 

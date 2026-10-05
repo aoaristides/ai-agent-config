@@ -4,7 +4,8 @@ Camada operacional e agnóstica sobre o contexto já existente.
 
 ## Fontes de verdade
 
-- `catalog.yml`: descoberta dos agentes e dependências de contexto.
+- `catalog.yml`: descoberta dos agentes, dependências de contexto e
+  `model_profile` agnóstico de cada função.
 - `_shared/agent-contract.md`: contrato mínimo de definição.
 - `_shared/routing-context-policy.md`: escolha do agente e composição de contexto.
 - `_shared/handoff-protocol.md`: envelope de passagem entre agentes.
@@ -20,3 +21,8 @@ Hosts com delegação nativa podem materializar cada definição como subagente.
 Hosts sem essa capacidade executam os mesmos contratos em sequência. Os adapters
 não carregam todos os agentes: o catálogo e os contratos são consultados sob
 demanda para preservar contexto.
+
+A seleção de modelo é resolvida fora do agente: `models/profiles.yaml` define a
+intenção portátil e `adapters/<runtime>/models.yaml` mapeia essa intenção para os
+nomes concretos aceitos pelo host. Consulte `models/selection-policy.md` e
+`models/fallback-policy.md`.

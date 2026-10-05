@@ -1,0 +1,31 @@
+version: 1
+runtime: antigravity
+capabilities:
+  subagent_materialization: false
+  model_selection: advisory
+profiles:
+  reasoning-high:
+    primary: gemini-3.1-pro-high
+    fallbacks:
+      - gemini-3.8-flash-high
+      - gemini-3.7-flash-high
+  coding-high:
+    primary: gemini-3.1-pro-high
+    fallbacks:
+      - gemini-3.8-flash-high
+      - gemini-3.7-flash-high
+  coding-balanced:
+    primary: gemini-3.8-flash-high
+    fallbacks:
+      - gemini-3.7-flash-high
+      - gemini-3.6-flash-high
+  analysis-medium:
+    primary: gemini-3.8-flash-medium
+    fallbacks:
+      - gemini-3.7-flash-medium
+      - gemini-3.6-flash-medium
+  review-high:
+    primary: gemini-3.1-pro-high
+    fallbacks:
+      - gemini-3.8-flash-high
+      - gemini-3.7-flash-high

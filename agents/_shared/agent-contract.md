@@ -11,6 +11,10 @@ Cada `agents/<id>/AGENT.md` deve declarar:
 7. **Handoffs** — condições de entrada, saída e bloqueio.
 8. **Guardrails** — riscos que exigem parada ou autorização.
 
+O metadata operacional fica em `agents/catalog.yml`. Cada agente deve declarar
+um `model_profile` existente em `models/profiles.yaml`; o contrato `AGENT.md` não
+contém fornecedor nem nome concreto de modelo.
+
 ## Invariantes
 
 - O pedido atual, as políticas do host e as regras do projeto consumidor têm

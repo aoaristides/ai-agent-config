@@ -1,0 +1,32 @@
+version: 1
+profiles:
+  reasoning-high:
+    intent: raciocínio profundo para decisões ambíguas ou difíceis de reverter
+    priorities:
+      - reasoning
+      - quality
+      - tool-use
+  coding-high:
+    intent: implementação complexa com forte uso de ferramentas e validação
+    priorities:
+      - coding
+      - reasoning
+      - tool-use
+  coding-balanced:
+    intent: implementação e testes com equilíbrio entre qualidade, custo e latência
+    priorities:
+      - coding
+      - efficiency
+      - tool-use
+  analysis-medium:
+    intent: análise delimitada e síntese com preferência por eficiência
+    priorities:
+      - analysis
+      - efficiency
+      - latency
+  review-high:
+    intent: revisão independente orientada a risco e corretude
+    priorities:
+      - review
+      - reasoning
+      - quality

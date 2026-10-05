@@ -1,0 +1,39 @@
+version: 1
+runtime: claude
+capabilities:
+  subagent_materialization: true
+  model_selection: alias
+selectors:
+  claude-opus-5-5: opus
+  claude-opus-5: opus
+  claude-opus-4-8: opus
+  claude-sonnet-5-5: sonnet
+  claude-sonnet-5: sonnet
+  claude-sonnet-4-6: sonnet
+  claude-haiku-4-5-20251001: haiku
+profiles:
+  reasoning-high:
+    primary: claude-opus-5-5
+    fallbacks:
+      - claude-opus-5
+      - claude-opus-4-8
+  coding-high:
+    primary: claude-opus-5-5
+    fallbacks:
+      - claude-sonnet-5-5
+      - claude-opus-5
+  coding-balanced:
+    primary: claude-sonnet-5-5
+    fallbacks:
+      - claude-sonnet-5
+      - claude-sonnet-4-6
+  analysis-medium:
+    primary: claude-sonnet-5-5
+    fallbacks:
+      - claude-sonnet-5
+      - claude-haiku-4-5-20251001
+  review-high:
+    primary: claude-opus-5-5
+    fallbacks:
+      - claude-sonnet-5-5
+      - claude-opus-5

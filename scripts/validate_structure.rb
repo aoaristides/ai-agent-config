@@ -11,6 +11,9 @@ module StructureValidation
   TOPIC_FILES = %w[context.md roadmap.md progress.md notes.md exercises.md].freeze
   REQUIRED_AGENTS = %w[orchestrator product-manager architect software-engineer tester
                        code-reviewer security-engineer performance-engineer].freeze
+  REQUIRED_MODEL_PROFILES = %w[reasoning-high coding-high coding-balanced analysis-medium review-high].freeze
+  MODEL_RUNTIMES = %w[codex claude antigravity].freeze
+  MODEL_SELECTION_MODES = %w[exact alias advisory].freeze
   AGENT_SECTIONS = ['Missão', 'Acione quando', 'Não acione quando', 'Contexto mínimo',
                     'Entradas obrigatórias', 'Saídas obrigatórias', 'Handoffs', 'Guardrails'].freeze
   HANDOFF_TEMPLATE_PARTS = {
@@ -96,7 +99,8 @@ module StructureValidation
       errors << "nome de tópico inválido: #{name}" unless name.match?(SLUG)
       TOPIC_FILES.each { |file| check_file.call("learning/#{name}/#{file}") }
     end
-    validate_agent_catalog(root, errors)
+    model_profiles = validate_model_configuration(root, errors)
+    validate_agent_catalog(root, errors, model_profiles)
     validate_handoff_contract(root, errors)
     Dir.glob(File.join(root, '{agents,knowledge,profiles,templates,projects,prompts,core,roles,workflows,context-packs,adapters}', '**', '*.md')).each do |path|
       check_file.call(path.delete_prefix(root + '/'))
@@ -111,7 +115,7 @@ module StructureValidation
       errors << "compilador de contexto inválido: #{e.message}"
     end
     %w[package-skills.sh create-learning-topic.sh validate-structure.sh render-agent-context.rb
-       check-context-drift.rb sync-platforms.rb].each do |name|
+       check-context-drift.rb sync-platforms.rb resolve-model.rb].each do |name|
       errors << "script não executável: #{name}" unless File.executable?(File.join(root, 'scripts', name))
     end
     %w[CLAUDE.md].each do |file|
@@ -125,7 +129,119 @@ module StructureValidation
     ["estrutura ilegível: #{e.class}: #{e.message}"]
   end
 
-  def self.validate_agent_catalog(root, errors)
+  def self.validate_model_configuration(root, errors)
+    relative = 'models/profiles.yaml'
+    path = File.join(root, relative)
+    return [] unless File.file?(path)
+
+    raw = File.read(path, encoding: 'UTF-8')
+    duplicates = duplicate_yaml_keys(raw)
+    errors << "chaves YAML duplicadas em #{relative}: #{duplicates.join(', ')}" unless duplicates.empty?
+    data = YAML.safe_load(raw, permitted_classes: [], permitted_symbols: [], aliases: false)
+    unless data.is_a?(Hash) && data['version'] == 1 && data['profiles'].is_a?(Hash)
+      errors << 'perfis de modelo devem ter version 1 e profiles como mapping'
+      return []
+    end
+
+    profiles = data['profiles']
+    (REQUIRED_MODEL_PROFILES - profiles.keys).each { |name| errors << "perfil de modelo obrigatório ausente: #{name}" }
+    profiles.each do |name, entry|
+      unless name.is_a?(String) && name.match?(SLUG) && entry.is_a?(Hash)
+        errors << "perfil de modelo inválido: #{name.inspect}"
+        next
+      end
+      intent = entry['intent']
+      priorities = entry['priorities']
+      errors << "intent inválido no perfil #{name}" unless intent.is_a?(String) && !intent.strip.empty?
+      unless priorities.is_a?(Array) && !priorities.empty? && priorities.uniq == priorities &&
+             priorities.all? { |priority| priority.is_a?(String) && priority.match?(SLUG) }
+        errors << "priorities inválidas no perfil #{name}"
+      end
+    end
+
+    MODEL_RUNTIMES.each do |runtime|
+      mapping_relative = "adapters/#{runtime}/models.yaml"
+      mapping_path = File.join(root, mapping_relative)
+      next unless File.file?(mapping_path)
+
+      mapping_raw = File.read(mapping_path, encoding: 'UTF-8')
+      mapping_duplicates = duplicate_yaml_keys(mapping_raw)
+      unless mapping_duplicates.empty?
+        errors << "chaves YAML duplicadas em #{mapping_relative}: #{mapping_duplicates.join(', ')}"
+      end
+      mapping = YAML.safe_load(mapping_raw, permitted_classes: [], permitted_symbols: [], aliases: false)
+      unless mapping.is_a?(Hash) && mapping['version'] == 1 && mapping['runtime'] == runtime &&
+             mapping['profiles'].is_a?(Hash)
+        errors << "mapping de modelos inválido para #{runtime}"
+        next
+      end
+
+      capabilities = mapping['capabilities']
+      selection_mode = capabilities.is_a?(Hash) ? capabilities['model_selection'] : nil
+      materializable = capabilities.is_a?(Hash) ? capabilities['subagent_materialization'] : nil
+      unless MODEL_SELECTION_MODES.include?(selection_mode) && [true, false].include?(materializable)
+        errors << "capabilities inválidas para #{runtime}"
+      end
+      if MODEL_SELECTION_MODES.include?(selection_mode) && [true, false].include?(materializable) &&
+         ((selection_mode == 'advisory') == materializable)
+        errors << "capabilities incompatíveis para #{runtime}"
+      end
+
+      runtime_profiles = mapping['profiles']
+      (profiles.keys - runtime_profiles.keys).each do |name|
+        errors << "perfil #{name} sem mapping para #{runtime}"
+      end
+      (runtime_profiles.keys - profiles.keys).each do |name|
+        errors << "mapping de #{runtime} referencia perfil desconhecido: #{name}"
+      end
+      runtime_profiles.each do |name, entry|
+        unless entry.is_a?(Hash) && entry['primary'].is_a?(String) && !entry['primary'].strip.empty?
+          errors << "modelo primário inválido para #{name} em #{runtime}"
+          next
+        end
+        fallbacks = entry['fallbacks']
+        unless fallbacks.is_a?(Array) && !fallbacks.empty? && fallbacks.uniq == fallbacks &&
+               fallbacks.all? { |model| model.is_a?(String) && !model.strip.empty? } &&
+               !fallbacks.include?(entry['primary'])
+          errors << "fallbacks inválidos para #{name} em #{runtime}"
+        end
+      end
+
+      candidates = runtime_profiles.values.each_with_object([]) do |entry, result|
+        next unless entry.is_a?(Hash)
+
+        result.concat([entry['primary'], *Array(entry['fallbacks'])])
+      end.select { |model| model.is_a?(String) && !model.strip.empty? }.uniq
+      selectors = mapping['selectors']
+      if selection_mode == 'alias'
+        unless selectors.is_a?(Hash)
+          errors << "selectors ausentes para #{runtime} com seleção por alias"
+          next
+        end
+        (candidates - selectors.keys).each do |model|
+          errors << "selector ausente para #{model} em #{runtime}"
+        end
+        (selectors.keys - candidates).each do |model|
+          errors << "selector órfão para #{model} em #{runtime}"
+        end
+        selectors.each do |model, selector|
+          unless model.is_a?(String) && selector.is_a?(String) && !selector.strip.empty?
+            errors << "selector inválido para #{model.inspect} em #{runtime}"
+          end
+        end
+      elsif selectors
+        errors << "selectors só são permitidos em runtime com seleção por alias: #{runtime}"
+      end
+    rescue Psych::Exception => e
+      errors << "YAML inválido em #{mapping_relative}: #{e.class}"
+    end
+    profiles.keys
+  rescue Psych::Exception => e
+    errors << "YAML inválido em #{relative}: #{e.class}"
+    []
+  end
+
+  def self.validate_agent_catalog(root, errors, model_profiles = [])
     relative_catalog = 'agents/catalog.yml'
     catalog_path = File.join(root, relative_catalog)
     unless File.file?(catalog_path)
@@ -149,6 +265,10 @@ module StructureValidation
         next
       end
       validate_agent_path(root, errors, entry['definition'], 'definition', expected: "agents/#{name}/AGENT.md")
+      model_profile = entry['model_profile']
+      unless model_profile.is_a?(String) && model_profiles.include?(model_profile)
+        errors << "model_profile inválido no agente #{name}: #{model_profile.inspect}"
+      end
       definition = entry['definition']
       if definition.is_a?(String) && definition == "agents/#{name}/AGENT.md"
         path = File.join(root, definition)
@@ -286,7 +406,7 @@ end
 if $PROGRAM_NAME == __FILE__
   errors = StructureValidation.validate(ARGV.fetch(0, File.expand_path('..', __dir__)))
   if errors.empty?
-    puts '[validate-structure] OK: manifesto, agentes, YAML, skills, referências, tópicos e imports.'
+    puts '[validate-structure] OK: manifesto, agentes, modelos, YAML, skills, referências, tópicos e imports.'
   else
     errors.each { |message| warn "[validate-structure] #{message}" }
     exit 1

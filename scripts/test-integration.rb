@@ -21,7 +21,7 @@ class IntegrationTest < Minitest::Test
     source = File.expand_path('..', __dir__)
     %w[README.md AGENTS.md CLAUDE.md GEMINI.md profiles skills knowledge learning
        templates projects prompts scripts context docs tests adapters config core agents
-       roles workflows context-packs context-index.md].each do |name|
+       roles workflows context-packs models context-index.md].each do |name|
       FileUtils.cp_r(File.join(source, name), @root)
     end
     Dir[File.join(@root, '**', '*.ai-agent-config.bak')].each { |path| FileUtils.rm_f(path) }
@@ -141,6 +141,105 @@ class IntegrationTest < Minitest::Test
     validation_errors = errors
     assert validation_errors.any? { |error| error.include?('workflows inválidos no agente security-engineer') }
     assert validation_errors.any? { |error| error.include?('skills inválidas no agente architect') }
+  end
+
+  def test_agent_catalog_requires_known_model_profile
+    catalog = File.join(@root, 'agents/catalog.yml')
+    text = File.read(catalog, encoding: 'UTF-8')
+      .sub("    model_profile: analysis-medium\n", '')
+      .sub('    model_profile: review-high', '    model_profile: profile-inexistente')
+    File.write(catalog, text, encoding: 'UTF-8')
+
+    validation_errors = errors
+    assert validation_errors.any? { |error| error.include?('model_profile inválido no agente product-manager') }
+    assert validation_errors.any? { |error| error.include?('model_profile inválido no agente code-reviewer') }
+  end
+
+  def test_model_mappings_cover_profiles_and_reject_duplicate_fallbacks
+    antigravity = File.join(@root, 'adapters/antigravity/models.yaml')
+    data = YAML.safe_load(File.read(antigravity, encoding: 'UTF-8'), aliases: false)
+    data['profiles'].delete('review-high')
+    data['profiles']['coding-high']['fallbacks'] << data['profiles']['coding-high']['fallbacks'].first
+    File.write(antigravity, YAML.dump(data), encoding: 'UTF-8')
+
+    validation_errors = errors
+    assert validation_errors.any? { |error| error.include?('perfil review-high sem mapping para antigravity') }
+    assert validation_errors.any? { |error| error.include?('fallbacks inválidos para coding-high em antigravity') }
+  end
+
+  def test_model_mappings_require_coherent_runtime_capabilities
+    codex = File.join(@root, 'adapters/codex/models.yaml')
+    data = YAML.safe_load(File.read(codex, encoding: 'UTF-8'), aliases: false)
+    data['capabilities']['model_selection'] = 'advisory'
+    File.write(codex, YAML.dump(data), encoding: 'UTF-8')
+
+    assert errors.any? { |error| error.include?('capabilities incompatíveis para codex') }
+  end
+
+  def test_alias_runtime_requires_selector_for_every_candidate
+    claude = File.join(@root, 'adapters/claude/models.yaml')
+    data = YAML.safe_load(File.read(claude, encoding: 'UTF-8'), aliases: false)
+    data['selectors'].delete('claude-sonnet-5-5')
+    File.write(claude, YAML.dump(data), encoding: 'UTF-8')
+
+    assert errors.any? { |error| error.include?('selector ausente para claude-sonnet-5-5 em claude') }
+  end
+
+  def test_model_resolver_uses_agent_profile_and_ordered_fallback
+    script = File.join(@root, 'scripts/resolve-model.rb')
+    output, status = Open3.capture2e('ruby', script, '--runtime', 'codex', '--agent',
+                                    'software-engineer', '--unavailable', 'gpt-6.1-sol',
+                                    '--format', 'json')
+
+    assert status.success?, output
+    result = JSON.parse(output)
+    assert_equal 'coding-high', result.fetch('profile')
+    assert_equal 'gpt-6-astra', result.fetch('model')
+    assert_equal 'gpt-6-astra', result.fetch('host_selector')
+    assert_equal 'exact', result.fetch('selection_mode')
+    assert_equal true, result.fetch('materializable')
+    assert_equal true, result.fetch('fallback')
+  end
+
+  def test_model_resolver_translates_claude_model_to_host_alias
+    script = File.join(@root, 'scripts/resolve-model.rb')
+    output, status = Open3.capture2e('ruby', script, '--runtime', 'claude', '--agent',
+                                    'software-engineer', '--unavailable', 'claude-opus-5-5',
+                                    '--format', 'json')
+
+    assert status.success?, output
+    result = JSON.parse(output)
+    assert_equal 'claude-sonnet-5-5', result.fetch('model')
+    assert_equal 'sonnet', result.fetch('host_selector')
+    assert_equal 'alias', result.fetch('selection_mode')
+    assert_equal true, result.fetch('materializable')
+    assert_equal true, result.fetch('fallback')
+  end
+
+  def test_model_resolver_marks_antigravity_selection_as_advisory
+    script = File.join(@root, 'scripts/resolve-model.rb')
+    output, status = Open3.capture2e('ruby', script, '--runtime', 'antigravity', '--agent',
+                                    'software-engineer', '--unavailable', 'gemini-3.1-pro-high',
+                                    '--format', 'json')
+
+    assert status.success?, output
+    result = JSON.parse(output)
+    assert_equal 'gemini-3.8-flash-high', result.fetch('model')
+    refute result.key?('host_selector')
+    assert_equal 'advisory', result.fetch('selection_mode')
+    assert_equal false, result.fetch('materializable')
+    assert_equal true, result.fetch('fallback')
+  end
+
+  def test_model_resolver_fails_closed_when_candidates_are_exhausted
+    script = File.join(@root, 'scripts/resolve-model.rb')
+    output, status = Open3.capture2e(
+      'ruby', script, '--runtime', 'antigravity', '--profile', 'analysis-medium',
+      '--unavailable', 'gemini-3.8-flash-medium,gemini-3.7-flash-medium,gemini-3.6-flash-medium'
+    )
+
+    refute status.success?
+    assert_includes output, 'nenhum modelo disponível para analysis-medium em antigravity'
   end
 
   def test_context_route_must_match_agent_catalog

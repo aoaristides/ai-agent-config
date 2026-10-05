@@ -1,60 +1,249 @@
-# AI Agent Config
+# AI Agent Config — Agent Runtime portátil
 
-Configuração compartilhada e portátil para agentes de IA: contratos de agentes,
-perfis, skills, conhecimento técnico curado, workflows, templates e contexto de
-projetos.
+O `ai-agent-config` é o **control plane declarativo** de um Agent Runtime
+portátil para Codex, Claude Code e Antigravity. Ele define quais agentes existem,
+como uma demanda escolhe seu owner, qual contexto cada agente recebe, qual perfil
+de modelo precisa, como esse perfil é traduzido para cada host e como o trabalho
+é transferido entre agentes sem ampliar a autoridade concedida pelo usuário.
 
-## Integração com os agentes
+O host continua sendo o **execution plane**: é Codex, Claude Code ou Antigravity
+que executa o modelo, oferece ferramentas, controla permissões e, quando houver
+suporte, materializa subagentes. Este repositório não é um daemon, scheduler,
+fila de tarefas ou SDK de inferência independente.
 
-Consulte [o guia de integração](docs/agent-integration.md). Criar uma pasta em
-`skills/` não instala a skill nos agentes. O instalador oferece um plano sem
-escrita e aplicação explícita, preservando instruções e links existentes:
+## O que o Agent Runtime faz
+
+- mantém um catálogo canônico de agentes e seus limites de ownership;
+- roteia a demanda para um único owner por padrão;
+- compõe contexto mínimo a partir de kernel, contrato, role, workflow, skills e
+  context packs, carregados sob demanda;
+- resolve `model_profile` agnóstico para modelo e selector específicos do host;
+- adapta a execução às capabilities verificadas de cada runtime;
+- preserva escopo, evidências, restrições e autoridade em handoffs explícitos;
+- distribui o mesmo núcleo para os três hosts sem duplicar agentes ou
+  conhecimento técnico;
+- falha de forma explícita quando agente, perfil, mapping, selector ou fallback
+  obrigatório estiver ausente;
+- valida estrutura, geração dos adapters, instalação, regressões e drift.
+
+## O que ele não faz
+
+- não substitui o runtime do fornecedor nem escolhe ferramentas disponíveis;
+- não mantém scheduler, banco de estado, fila, UI ou observabilidade central;
+- não detecta sozinho quota, entitlement ou indisponibilidade de modelo;
+- não faz retry automático após falha real do provedor;
+- não transforma seleção por alias em garantia de versão concreta;
+- não concede acesso a arquivos, rede, produção ou ações destrutivas;
+- não trata execução sequencial como paralelismo nem resolução como prova de
+  materialização.
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    U[Pedido do usuário] --> H[Host<br/>Codex · Claude · Antigravity]
+    H --> A[Adapter do host]
+    A --> K[Kernel + policies]
+    K --> R[Routing de ownership]
+    R --> C[agents/catalog.yml]
+
+    C --> D[Contrato AGENT.md]
+    D --> X[Role + workflow + skills<br/>packs e projeto sob demanda]
+
+    C --> P[model_profile]
+    P --> M[Model Resolver]
+    M --> Y[adapters/runtime/models.yaml]
+    Y --> Q{Capability do host}
+    Q -->|exact| E[ID concreto]
+    Q -->|alias| L[host_selector]
+    Q -->|advisory| N[Resolução sem alegar execução]
+
+    X --> T[Execução no host]
+    E --> T
+    L --> T
+    N --> T
+    T --> O[Saída verificável ou handoff]
+```
+
+Arquiteturalmente, o runtime separa **intenção portátil** de **mecanismo do
+host**. Agentes, políticas e perfis não conhecem fornecedor. Somente o adapter
+conhece nomes concretos, selectors e limitações do runtime.
+
+### Camadas e fontes canônicas
+
+| Camada | Responsabilidade | Fonte |
+| --- | --- | --- |
+| Bootstrap | Instalar o núcleo e indicar a raiz local | `adapters/templates/`, `scripts/install-agents.rb` |
+| Kernel | Precedência, segurança, saída e carregamento econômico | `core/`, `context/agent-core.md` |
+| Routing | Escolher o owner e evitar pipelines desnecessários | `context-index.md`, `agents/_shared/routing-context-policy.md` |
+| Catálogo | Relacionar agente, contrato, perfil, role, workflows e skills | `agents/catalog.yml` |
+| Contrato | Definir missão, entradas, saídas, limites e handoffs | `agents/<id>/AGENT.md` |
+| Contexto | Especializar comportamento sem copiar conhecimento | `roles/`, `workflows/`, `skills/`, `context-packs/`, `projects/` |
+| Model routing | Traduzir intenção agnóstica para o runtime | `models/`, `adapters/<runtime>/models.yaml`, `scripts/resolve-model.rb` |
+| Handoff | Transferir ownership e autoridade de forma verificável | `agents/_shared/handoff-protocol.md`, `templates/agent-handoff.md` |
+| Distribuição | Gerar e sincronizar os adapters dos hosts | `config/context-manifest.yml`, `scripts/sync-platforms.rb` |
+| Qualidade | Detectar configuração inválida, regressão e drift | `scripts/validate-structure.sh`, `scripts/test-integration.rb`, `scripts/check-context-drift.rb` |
+
+## Como uma demanda é executada
+
+1. **Bootstrap do host.** O adapter instalado informa a raiz deste repositório e
+   carrega o kernel compartilhado. Regras do usuário, do host e do projeto
+   consumidor continuam com precedência.
+2. **Routing.** O objetivo principal é classificado e encaminhado ao agente com
+   ownership direto. Outro agente entra apenas quando houver troca real de
+   ownership, especialidade necessária ou revisão independente.
+3. **Composição de contexto.** O runtime carrega o contrato do agente, uma role,
+   o workflow da etapa e somente skills, packs, projeto e evidências pertinentes.
+   O histórico inteiro e a biblioteca completa não são carregados por padrão.
+4. **Resolução do modelo.** O agente fornece apenas `model_profile`. O resolver
+   consulta o mapping do runtime e escolhe `primary` ou o primeiro fallback ainda
+   disponível.
+5. **Materialização.** O host recebe ID exato, alias ou somente uma recomendação,
+   conforme suas capabilities. Ausência de suporte nativo não é mascarada como
+   sucesso.
+6. **Execução e saída.** O agente segue seu contrato e entrega um artefato
+   verificável. Se outro owner precisar continuar, recebe um handoff completo;
+   contexto ausente mantém o handoff `blocked`.
+7. **Persistência seletiva.** Código e configuração portátil ficam neste
+   repositório. Decisões reais, estado vivo e aprendizados observados pertencem
+   ao cofre autorizado, nunca a transcrições ou logs brutos.
+
+## Agentes disponíveis
+
+| Agente | Ownership principal | `model_profile` |
+| --- | --- | --- |
+| `orchestrator` | Coordenar owners, dependências e handoffs | `reasoning-high` |
+| `product-manager` | Problema, valor, escopo e critérios de aceite | `analysis-medium` |
+| `architect` | Decisões estruturais, ADRs e review arquitetural | `reasoning-high` |
+| `software-engineer` | Implementação, bugfix, refactor e diagnóstico | `coding-high` |
+| `tester` | Validação independente e evidência de aceite | `coding-balanced` |
+| `code-reviewer` | Review de código orientado a risco | `review-high` |
+| `security-engineer` | Trust boundaries, ameaças e controles | `reasoning-high` |
+| `performance-engineer` | Baseline, gargalos e avaliação de performance | `reasoning-high` |
+
+`orchestrator` não é um scheduler e não substitui os outros papéis. Ele coordena
+quando a entrega realmente cruza owners; uma tarefa simples continua com um
+único agente.
+
+## Model routing agnóstico
+
+O agente conhece somente seu perfil de capacidade. Os perfis canônicos ficam em
+`models/profiles.yaml`; modelos concretos, ordem de fallback e capabilities
+ficam em `adapters/<runtime>/models.yaml`.
+
+```text
+software-engineer
+  -> coding-high
+  -> adapter do runtime
+  -> primary / fallbacks
+  -> model + host_selector + selection_mode + materializable
+```
+
+Exemplo:
+
+```bash
+ruby scripts/resolve-model.rb \
+  --runtime claude \
+  --agent software-engineer \
+  --unavailable claude-opus-5-5 \
+  --format json
+```
+
+```json
+{
+  "runtime": "claude",
+  "agent": "software-engineer",
+  "profile": "coding-high",
+  "model": "claude-sonnet-5-5",
+  "host_selector": "sonnet",
+  "selection_mode": "alias",
+  "materializable": true,
+  "fallback": true
+}
+```
+
+### Capabilities por runtime
+
+| Runtime | Seleção | Materialização testada | Semântica |
+| --- | --- | --- | --- |
+| Codex | `exact` | Sim | `host_selector` é o ID concreto aceito pelo host |
+| Claude Code | `alias` | Sim | o host recebe `opus`, `sonnet` ou `haiku`; transcript/metadata confirmam o modelo efetivo quando disponíveis |
+| Antigravity | `advisory` | Não | o resolver expressa a preferência, mas não afirma execução em subagente |
+
+Essas capabilities representam os hosts efetivamente testados, não uma promessa
+permanente dos fornecedores. Mudanças de versão, conta ou entitlement exigem
+nova validação.
+
+### Fallback
+
+O fallback é ordenado e fail-closed:
+
+1. tenta o `primary`;
+2. ignora somente modelos informados como indisponíveis;
+3. seleciona o primeiro fallback restante;
+4. falha explicitamente quando a lista se esgota.
+
+Erro de prompt, ferramenta, autenticação, permissão ou qualidade não autoriza
+downgrade silencioso. Atualmente o runtime precisa informar a indisponibilidade,
+inclusive por `--unavailable`; detecção automática e retry de materialização
+ainda não fazem parte desta implementação.
+
+## Segurança, autoridade e handoff
+
+- pedido atual, policies do host e regras do projeto consumidor têm precedência;
+- um adapter informa onde carregar contexto, mas não concede acesso;
+- o agente selecionado não assume autoridade de outro papel;
+- handoff preserva autoridade já concedida e nunca cria permissão nova;
+- ausência de escopo, aceite, artefato ou fonte verificável mantém o handoff
+  `blocked`;
+- revisão independente exige outra sessão/agente ou revisão humana;
+- segredo, PII, log bruto e output de build não entram em adapters, packs ou no
+  cofre.
+
+## Instalação rápida
+
+Consulte também [o guia de integração](docs/agent-integration.md). O instalador
+mostra um plano sem escrita e preserva instruções existentes:
 
 ```bash
 ruby scripts/install-agents.rb --user --agents codex,claude,antigravity
 ```
 
-Acrescente `--apply` para aplicar. Para um projeto consumidor, use `--project`
-com o caminho absoluto do projeto. O núcleo está em
-[context/agent-core.md](context/agent-core.md); Claude usa importação
-nativa, e os demais adaptadores recebem instruções no formato do host.
-Gemini CLI está fora do escopo; a integração Google mantida é o Antigravity.
+Revise os destinos e aplique explicitamente:
 
-Validação estrutural da fonte: `./scripts/validate-structure.sh`.
-Regressões e instalação isolada: `ruby scripts/test-integration.rb`. Depois de
-alterar skills, execute também `./scripts/package-skills.sh`. O fluxo completo
-de sincronização e validação está na seção [Compilador de contexto](#compilador-de-contexto).
-Sessões reais: [casos e critérios de aceite](tests/session-cases.md).
-Estado por host e pendências: [matriz de validação](tests/session-results.md).
-O sucesso desses testes estruturais não certifica uma sessão real de modelo.
+```bash
+ruby scripts/install-agents.rb \
+  --user \
+  --agents codex,claude,antigravity \
+  --apply
+```
 
-## Estrutura e fonte canônica
+Para um projeto consumidor, use `--project` com seu caminho absoluto. Abra uma
+sessão nova depois de atualizar as regras; uma sessão já iniciada pode manter o
+contexto anterior. Gemini CLI está fora do escopo; a integração Google mantida é
+o Antigravity.
 
-- `core/` e `context-index.md` — kernel, contratos globais e roteamento seletivo.
-- `agents/` — catálogo, contratos, routing e handoffs da plataforma local.
-- `roles/`, `workflows/` e `context-packs/` — contexto sob demanda.
-- `config/context-manifest.yml` — composição canônica dos adaptadores.
-- `adapters/` — templates e artefatos gerados para cada host.
-- `AGENTS.md`, `CLAUDE.md` e `GEMINI.md` — pontos de entrada compatíveis para
-  Codex, Claude Code e Antigravity.
-- `profiles/` — contexto técnico e preferências relativamente estáveis.
-- `skills/` — comportamento especializado; cada skill tem um `SKILL.md`.
-- `knowledge/` — modelos mentais e checklists técnicos reutilizáveis.
-- `learning/` — contexto, roadmap, progresso, notas e exercícios por tema.
-- `templates/` — modelos de ADR, reviews, incidentes, projetos e estudo.
-- `projects/` — contexto portátil de projetos, com exemplo inicial.
-- `prompts/` — entradas curtas que encaminham para as skills apropriadas.
-- `scripts/package-skills.sh` — valida e empacota as skills para upload.
-- `scripts/create-learning-topic.sh` — cria uma trilha sem sobrescrever tópicos.
-- `scripts/validate-structure.sh` — valida arquivos obrigatórios e skills.
-- `scripts/render-agent-context.rb` — renderiza um adaptador sem escrever.
-- `scripts/sync-platforms.rb` — sincroniza adaptadores; `dry-run` por padrão.
-- `scripts/check-context-drift.rb` — falha quando a fonte e a saída divergem.
-- `dist/` — ZIPs gerados localmente, fora do versionamento.
+## Validação
 
-A fundação e seus trade-offs estão em
-[docs/agent-platform.md](docs/agent-platform.md). Agentes compõem roles,
-workflows e skills existentes; não mantêm cópias desse conhecimento.
+```bash
+ruby scripts/sync-platforms.rb
+ruby scripts/check-context-drift.rb
+./scripts/validate-structure.sh
+ruby scripts/test-integration.rb
+```
+
+O primeiro comando é dry-run; use `--apply` somente após revisar o plano. Depois
+de alterar skills, execute também `./scripts/package-skills.sh`.
+
+O fechamento local de 2026-10-04 validou 62 testes, 216 assertions, as 24
+combinações agente × runtime, adapters sem drift e instalação idempotente nos
+três hosts. Isso comprova contratos e integração exercitada, mas não garante
+disponibilidade futura do provedor nem substitui smoke tests em sessões novas.
+
+Sessões reais e critérios de aceite estão em
+[tests/session-cases.md](tests/session-cases.md); resultados e limitações por host
+estão em [tests/session-results.md](tests/session-results.md). A fundação e seus
+trade-offs estão em [docs/agent-platform.md](docs/agent-platform.md).
 
 ## Compilador de contexto
 
@@ -287,6 +476,10 @@ ai-agent-config/
 │   ├── _shared/
 │   ├── catalog.yml
 │   └── <agent>/AGENT.md
+├── models/
+│   ├── profiles.yaml
+│   ├── selection-policy.md
+│   └── fallback-policy.md
 ├── roles/
 ├── workflows/
 ├── context-packs/
