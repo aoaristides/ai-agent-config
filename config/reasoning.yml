@@ -1,0 +1,12 @@
+default_provider: rule-based
+fallback_provider: rule-based
+confidence_threshold: 0.75
+max_candidates: 3
+max_semantic_candidates: 5
+providers:
+  codex:
+    command: codex
+    timeout_seconds: 120
+  claude:
+    command: claude
+    timeout_seconds: 120

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-agent-config.local/schemas/knowledge-reasoning-result.schema.json",
+  "title": "Knowledge Reasoning Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["classification", "summary", "candidates", "relationships"],
+  "properties": {
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_type", "confidence"],
+      "properties": {
+        "primary_type": {
+          "oneOf": [
+            {"type": "string", "enum": ["padrao", "decisao", "preferencia", "projeto", "stack", "aprendizado"]},
+            {"type": "null"}
+          ]
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "summary": {"type": ["string", "null"]},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "title", "summary", "content", "confidence", "evidence"],
+        "properties": {
+          "type": {"type": "string", "enum": ["padrao", "decisao", "preferencia", "projeto", "stack", "aprendizado"]},
+          "title": {"type": "string", "minLength": 1},
+          "summary": {"type": "string", "minLength": 1},
+          "content": {"type": "string", "minLength": 1},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_title", "target_title", "confidence"],
+        "properties": {
+          "source_title": {"type": "string", "minLength": 1},
+          "target_title": {"type": "string", "minLength": 1},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    }
+  }
+}

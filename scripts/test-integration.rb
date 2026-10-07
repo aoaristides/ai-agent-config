@@ -19,7 +19,7 @@ class IntegrationTest < Minitest::Test
     @root = File.join(@temp, 'source')
     FileUtils.mkdir_p(@root)
     source = File.expand_path('..', __dir__)
-    %w[README.md AGENTS.md CLAUDE.md GEMINI.md profiles skills knowledge learning
+    %w[README.md AGENTS.md CLAUDE.md GEMINI.md profiles skills knowledge learning capture processors schemas
        templates projects prompts scripts context docs tests adapters config core agents
        roles workflows context-packs models context-index.md].each do |name|
       FileUtils.cp_r(File.join(source, name), @root)

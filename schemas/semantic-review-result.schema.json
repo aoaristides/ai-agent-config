@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-agent-config.local/schemas/semantic-review-result.schema.json",
+  "title": "Semantic Review Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "confidence", "target", "reason", "novel_information"],
+  "properties": {
+    "action": {"type": "string", "enum": ["create", "update", "merge", "link", "skip"]},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "target": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+    "reason": {"type": "string", "minLength": 1},
+    "novel_information": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}
