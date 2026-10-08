@@ -576,6 +576,44 @@ class IntegrationTest < Minitest::Test
     assert_equal 5, Dir[File.join(@root, 'learning', 'concurrent', '*.md')].length
   end
 
+  def attribution_guard(command)
+    payload = JSON.generate('tool_name' => 'Bash', 'tool_input' => { 'command' => command })
+    Open3.capture2e(File.join(@root, 'adapters/claude/hooks/attribution-guard.sh'), stdin_data: payload)
+  end
+
+  def test_attribution_guard_blocks_ai_attribution_in_commit_and_pr
+    trailer = 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
+    [
+      "git commit -m \"$(cat <<'EOF'\nfeat: x\n\n#{trailer}\nEOF\n)\"",
+      "git -C /tmp/r commit -m 'feat: x' -m '#{trailer}'",
+      "git commit -m 'x' --trailer 'co-authored-by: Claude <a@b.c>'",
+      "gh pr create --title t --body 'Resumo\n\nGenerated with [Claude Code](https://claude.com/claude-code)'",
+      "curl -X POST https://api.bitbucket.org/2.0/repositories/a/b/pullrequests -d 'Generated with Claude Code'"
+    ].each do |command|
+      output, status = attribution_guard(command)
+      assert_equal 2, status.exitstatus, command
+      assert_includes output, 'attribution-guard'
+    end
+  end
+
+  def test_attribution_guard_allows_clean_writes_human_coauthor_and_reads
+    [
+      "git commit -m 'feat(catalog): grupo de cores na PDP'",
+      "git commit -m 'x' -m 'Co-Authored-By: Maria Silva <maria@exemplo.com>'",
+      "git log --all -i --grep='Co-Authored-By: Claude' --format=%h",
+      "gh pr create --title t --body 'corpo'",
+      'ls -la'
+    ].each do |command|
+      output, status = attribution_guard(command)
+      assert status.success?, "#{command}: #{output}"
+    end
+  end
+
+  def test_rejects_non_executable_adapter_hook
+    FileUtils.chmod(0o644, File.join(@root, 'adapters/claude/hooks/attribution-guard.sh'))
+    assert_includes errors, 'hook não executável: adapters/claude/hooks/attribution-guard.sh'
+  end
+
   def install(project, *args)
     Open3.capture2e('ruby', File.join(@root, 'scripts', 'install-agents.rb'), '--project', project, *args)
   end

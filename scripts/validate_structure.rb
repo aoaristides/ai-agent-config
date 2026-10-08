@@ -118,6 +118,9 @@ module StructureValidation
        check-context-drift.rb sync-platforms.rb resolve-model.rb].each do |name|
       errors << "script não executável: #{name}" unless File.executable?(File.join(root, 'scripts', name))
     end
+    Dir.glob(File.join(root, 'adapters', '*', 'hooks', '*.sh')).sort.each do |path|
+      errors << "hook não executável: #{path.delete_prefix(root + '/')}" unless File.executable?(path)
+    end
     %w[CLAUDE.md].each do |file|
       path = File.join(root, file)
       unless File.file?(path) && File.read(path, encoding: 'UTF-8').match?(/^@(?:\.\/)?AGENTS\.md\s*$/)

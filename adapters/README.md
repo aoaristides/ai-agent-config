@@ -27,5 +27,44 @@ Para inspecionar uma resolução sem iniciar o host:
 ruby scripts/resolve-model.rb --runtime codex --agent software-engineer --format yaml
 ```
 
+## Hooks do Claude Code
+
+`claude/hooks/` guarda guards versionados manualmente; como o `models.yaml`,
+não são saída do compilador de contexto. São o reforço determinístico de uma
+regra do núcleo: a regra orienta o modelo, o hook barra o comando.
+
+| Hook | Evento | Regra que reforça |
+| --- | --- | --- |
+| `attribution-guard.sh` | `PreToolUse` em `Bash` | Commits e PRs sem atribuição ao agente de IA |
+
+`attribution-guard.sh` bloqueia (exit 2) o comando que escreve commit ou PR com
+trailer `Co-Authored-By` do Claude, o e-mail `noreply` da Anthropic ou a linha
+"Generated with Claude Code". Coautor humano e leitura (`git log --grep`) passam.
+Ele existe porque `attribution` vazia no `settings.json` só retira o pedido do
+harness: o modelo ainda copia o trailer quando o `git log` do repositório o tem.
+
+`scripts/install-agents.rb` não instala hooks nem altera `settings.json`. Para
+ligar, aponte o diretório pessoal para a fonte e registre o comando:
+
+```bash
+ln -s <AI_AGENT_CONFIG_ROOT>/adapters/claude/hooks/attribution-guard.sh ~/.claude/hooks/attribution-guard.sh
+```
+
+```json
+{
+  "attribution": { "commit": "", "pr": "", "sessionUrl": false },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/attribution-guard.sh" }] }
+    ]
+  }
+}
+```
+
+Mescle o trecho ao `~/.claude/settings.json` existente; não substitua o arquivo.
+O hook só enxerga a tool `Bash`: mensagem lida de arquivo (`git commit -F`) e PR
+criado por tool MCP dependem apenas da regra do núcleo. Sessões em nuvem não
+leem `~/.claude`; lá o trecho precisa estar no `.claude/settings.json` do projeto.
+
 `<AI_AGENT_CONFIG_ROOT>` é deliberadamente portátil nos artefatos versionados.
 O instalador renderiza o caminho local real dentro do bloco gerenciado.

@@ -37,6 +37,11 @@ perfil pessoal; preserve as demais preferências e as políticas do host.
   prova comprometimento de credencial. Sem evidência contrária, separe o valor
   fictício do risco do padrão: não declare incidente, segredo real ou necessidade
   de rotação; explique condicionalmente o que mudaria se o valor fosse real.
+- Commits e PRs não levam atribuição ao agente de IA: nenhum trailer
+  `Co-Authored-By` de IA, e-mail `noreply` do fornecedor ou linha "Generated
+  with …" em mensagem de commit, título ou corpo de PR, mesmo que o histórico
+  do repositório mostre commits antigos com esse padrão. Siga o estilo do
+  histórico; não copie a atribuição. Coautor humano permanece.
 - Verifique APIs e configurações dependentes de versão na documentação oficial.
 
 ## Localização e fontes de verdade
