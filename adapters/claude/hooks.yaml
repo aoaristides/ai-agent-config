@@ -1,0 +1,8 @@
+# Guards do Claude Code que scripts/install-agents.rb --user liga em ~/.claude.
+# Todo script de adapters/claude/hooks/ precisa de uma entrada aqui.
+version: 1
+runtime: claude
+hooks:
+  - file: attribution-guard.sh
+    event: PreToolUse
+    matcher: Bash

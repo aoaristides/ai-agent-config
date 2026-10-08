@@ -43,28 +43,32 @@ trailer `Co-Authored-By` do Claude, o e-mail `noreply` da Anthropic ou a linha
 Ele existe porque `attribution` vazia no `settings.json` só retira o pedido do
 harness: o modelo ainda copia o trailer quando o `git log` do repositório o tem.
 
-`scripts/install-agents.rb` não instala hooks nem altera `settings.json`. Para
-ligar, aponte o diretório pessoal para a fonte e registre o comando:
+`adapters/claude/hooks.yaml` declara evento e matcher de cada script; a
+validação recusa script sem entrada, entrada sem script e hook não executável.
 
-```bash
-ln -s <AI_AGENT_CONFIG_ROOT>/adapters/claude/hooks/attribution-guard.sh ~/.claude/hooks/attribution-guard.sh
-```
+`scripts/install-agents.rb --user --agents claude` liga os hooks declarados:
+cria o symlink em `~/.claude/hooks/` e acrescenta o comando ao grupo do matcher
+em `hooks.<evento>` do `~/.claude/settings.json`. Ele só acrescenta: as demais
+chaves e hooks ficam como estão, e um hook já registrado não é duplicado. Antes
+da primeira alteração grava `settings.json.ai-agent-config.bak`, que nunca é
+substituído. Recusa, sem escrever nada, `settings.json` que não seja JSON válido
+e arquivo comum já existente no lugar do symlink. O arquivo é regravado com
+indentação de dois espaços; comentários não são suportados.
+
+A instalação por `--project` não liga hooks: o symlink seria um caminho absoluto
+desta máquina dentro de um `settings.json` versionado. Sessões em nuvem não leem
+`~/.claude`; lá o registro precisa estar no `.claude/settings.json` do projeto,
+com o script versionado junto.
+
+O instalador não toca na chave `attribution`. Para o harness também deixar de
+pedir a atribuição, mantenha no `~/.claude/settings.json`:
 
 ```json
-{
-  "attribution": { "commit": "", "pr": "", "sessionUrl": false },
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/attribution-guard.sh" }] }
-    ]
-  }
-}
+{ "attribution": { "commit": "", "pr": "", "sessionUrl": false } }
 ```
 
-Mescle o trecho ao `~/.claude/settings.json` existente; não substitua o arquivo.
 O hook só enxerga a tool `Bash`: mensagem lida de arquivo (`git commit -F`) e PR
-criado por tool MCP dependem apenas da regra do núcleo. Sessões em nuvem não
-leem `~/.claude`; lá o trecho precisa estar no `.claude/settings.json` do projeto.
+criado por tool MCP dependem apenas da regra do núcleo.
 
 `<AI_AGENT_CONFIG_ROOT>` é deliberadamente portátil nos artefatos versionados.
 O instalador renderiza o caminho local real dentro do bloco gerenciado.

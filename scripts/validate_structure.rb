@@ -14,6 +14,9 @@ module StructureValidation
   REQUIRED_MODEL_PROFILES = %w[reasoning-high coding-high coding-balanced analysis-medium review-high].freeze
   MODEL_RUNTIMES = %w[codex claude antigravity].freeze
   MODEL_SELECTION_MODES = %w[exact alias advisory].freeze
+  CLAUDE_HOOKS_MANIFEST = 'adapters/claude/hooks.yaml'
+  HOOK_FILE = /\A[a-z0-9]+(?:-[a-z0-9]+)*\.sh\z/
+  HOOK_EVENTS = %w[PreToolUse PostToolUse].freeze
   AGENT_SECTIONS = ['Missão', 'Acione quando', 'Não acione quando', 'Contexto mínimo',
                     'Entradas obrigatórias', 'Saídas obrigatórias', 'Handoffs', 'Guardrails'].freeze
   HANDOFF_TEMPLATE_PARTS = {
@@ -118,9 +121,7 @@ module StructureValidation
        check-context-drift.rb sync-platforms.rb resolve-model.rb].each do |name|
       errors << "script não executável: #{name}" unless File.executable?(File.join(root, 'scripts', name))
     end
-    Dir.glob(File.join(root, 'adapters', '*', 'hooks', '*.sh')).sort.each do |path|
-      errors << "hook não executável: #{path.delete_prefix(root + '/')}" unless File.executable?(path)
-    end
+    validate_claude_hooks(root, errors)
     %w[CLAUDE.md].each do |file|
       path = File.join(root, file)
       unless File.file?(path) && File.read(path, encoding: 'UTF-8').match?(/^@(?:\.\/)?AGENTS\.md\s*$/)
@@ -130,6 +131,46 @@ module StructureValidation
     errors
   rescue JSON::ParserError, Errno::ENOENT, ArgumentError => e
     ["estrutura ilegível: #{e.class}: #{e.message}"]
+  end
+
+  # Entradas de adapters/claude/hooks.yaml; lista vazia quando o manifesto não existe.
+  def self.claude_hooks(root)
+    path = File.join(root, CLAUDE_HOOKS_MANIFEST)
+    return [] unless File.file?(path)
+
+    data = YAML.safe_load(File.read(path, encoding: 'UTF-8'), permitted_classes: [], permitted_symbols: [], aliases: false)
+    unless data.is_a?(Hash) && data['version'] == 1 && data['runtime'] == 'claude' && data['hooks'].is_a?(Array)
+      raise ArgumentError, "#{CLAUDE_HOOKS_MANIFEST} deve ter version 1, runtime claude e hooks como lista"
+    end
+    data['hooks']
+  end
+
+  def self.validate_claude_hooks(root, errors)
+    declared = []
+    claude_hooks(root).each do |entry|
+      file = entry.is_a?(Hash) ? entry['file'] : nil
+      unless file.is_a?(String) && file.match?(HOOK_FILE) && HOOK_EVENTS.include?(entry['event']) &&
+             entry['matcher'].is_a?(String) && !entry['matcher'].strip.empty?
+        errors << "hook inválido em #{CLAUDE_HOOKS_MANIFEST}: #{entry.inspect}"
+        next
+      end
+      errors << "hook duplicado em #{CLAUDE_HOOKS_MANIFEST}: #{file}" if declared.include?(file)
+      declared << file
+      relative = "adapters/claude/hooks/#{file}"
+      path = File.join(root, relative)
+      if !File.file?(path) || File.symlink?(path)
+        errors << "hook ausente ou não regular: #{relative}"
+      elsif !File.executable?(path)
+        errors << "hook não executável: #{relative}"
+      end
+    end
+    Dir.glob(File.join(root, 'adapters', 'claude', 'hooks', '*.sh')).sort.each do |path|
+      next if declared.include?(File.basename(path))
+
+      errors << "hook sem entrada em #{CLAUDE_HOOKS_MANIFEST}: #{path.delete_prefix(root + '/')}"
+    end
+  rescue Psych::Exception, ArgumentError => e
+    errors << "manifesto de hooks inválido: #{e.message}"
   end
 
   def self.validate_model_configuration(root, errors)

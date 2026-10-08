@@ -43,6 +43,13 @@ bloco não cria outro backup e será substituído na próxima aplicação.
 Uma falha durante a aplicação pode deixar parte da instalação pronta; repita o
 plano após resolver a causa. Não há promessa de transação entre vários arquivos.
 
+No escopo pessoal do Claude Code, o mesmo comando liga os hooks declarados em
+`adapters/claude/hooks.yaml`: symlink em `~/.claude/hooks/` e registro em
+`~/.claude/settings.json`, só acrescentando entradas. Antes da primeira
+alteração grava `settings.json.ai-agent-config.bak`, preservado nas seguintes.
+A instalação por projeto não liga hooks. Detalhes em
+[adapters/README.md](../adapters/README.md#hooks-do-claude-code).
+
 Os blocos gerados registram o caminho absoluto da fonte local. Não versione uma
 regra pessoal ou de projeto gerada e espere que funcione em outra máquina: clone
 a fonte no destino e execute o instalador novamente. Essa informação também pode

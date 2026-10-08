@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require 'json'
 require 'optparse'
 require 'tempfile'
 require_relative 'context_compiler'
@@ -72,6 +73,11 @@ module AgentInstallation
         edits[target] = context_for.call(agent)
       end
     end
+    # Hooks são do escopo pessoal do Claude: o link é absoluto e o settings.json de projeto é versionado.
+    hooks = options[:user] && options[:agents].include?('claude') ? StructureValidation.claude_hooks(root) : []
+    hooks.each do |hook|
+      links[File.join(base, '.claude/hooks', hook['file'])] = File.join(root, 'adapters/claude/hooks', hook['file'])
+    end
     planned = []
     links.each do |target, source|
       next if same_link?(target, source)
@@ -99,6 +105,19 @@ module AgentInstallation
         raise ArgumentError, "backup já existe, preservado: #{backup}"
       end
       planned << [:rules, target, updated, old, backup]
+    end
+    unless hooks.empty?
+      target = File.join(base, '.claude/settings.json')
+      reject_symlink_ancestors!(target, base)
+      raise ArgumentError, "settings é symlink ou diretório, preservado: #{target}" if File.symlink?(target) || File.directory?(target)
+      old = File.file?(target) ? File.read(target, encoding: 'UTF-8') : nil
+      updated = register_hooks(old, hooks, target)
+      if updated
+        # Sem bloco gerenciado em JSON: o backup guarda o estado anterior à primeira alteração e nunca é substituído.
+        backup = target + '.ai-agent-config.bak'
+        backup = nil if old.nil? || File.exist?(backup) || File.symlink?(backup)
+        planned << [:settings, target, updated, old, backup]
+      end
     end
     planned.each { |kind, target, _value, _old, _backup| puts "[install-agents] #{kind}: #{target}" }
     puts "[install-agents] #{planned.length} alteração(ões); #{options[:apply] ? 'aplicando' : 'somente plano; use --apply'}."
@@ -134,6 +153,34 @@ module AgentInstallation
   rescue ArgumentError, ContextCompiler::ConfigError, OptionParser::ParseError, SystemCallError => e
     warn "[install-agents] #{e.message}"
     1
+  end
+
+  # Devolve o settings.json com os hooks registrados, ou nil quando todos já estão lá.
+  # Só acrescenta entradas; o restante do arquivo é preservado.
+  def self.register_hooks(text, hooks, target)
+    data = text.nil? || text.strip.empty? ? {} : JSON.parse(text)
+    registry = data.is_a?(Hash) ? (data['hooks'] ||= {}) : nil
+    raise ArgumentError, "settings com formato inesperado, preservado: #{target}" unless registry.is_a?(Hash)
+
+    changed = false
+    hooks.each do |hook|
+      groups = registry[hook['event']] ||= []
+      unless groups.is_a?(Array) && groups.all? { |g| g.is_a?(Hash) && (g['hooks'].nil? || g['hooks'].is_a?(Array)) }
+        raise ArgumentError, "hooks.#{hook['event']} com formato inesperado, preservado: #{target}"
+      end
+      installed = "/.claude/hooks/#{hook['file']}"
+      next if groups.any? { |g| Array(g['hooks']).any? { |h| h.is_a?(Hash) && h['command'].to_s.include?(installed) } }
+
+      group = groups.find { |g| g['matcher'] == hook['matcher'] }
+      groups << (group = { 'matcher' => hook['matcher'], 'hooks' => [] }) unless group
+      (group['hooks'] ||= []) << { 'type' => 'command', 'command' => "$HOME#{installed}" }
+      changed = true
+    end
+    return nil unless changed
+
+    JSON.pretty_generate(data) + (text.nil? || text.end_with?("\n") ? "\n" : '')
+  rescue JSON::ParserError
+    raise ArgumentError, "settings não é JSON válido, preservado: #{target}"
   end
 
   def self.same_link?(target, source)

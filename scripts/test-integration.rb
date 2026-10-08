@@ -614,6 +614,98 @@ class IntegrationTest < Minitest::Test
     assert_includes errors, 'hook não executável: adapters/claude/hooks/attribution-guard.sh'
   end
 
+  def test_rejects_adapter_hook_missing_from_manifest
+    extra = File.join(@root, 'adapters/claude/hooks/sem-entrada.sh')
+    File.write(extra, "#!/usr/bin/env bash\nexit 0\n")
+    FileUtils.chmod(0o755, extra)
+    assert_includes errors, 'hook sem entrada em adapters/claude/hooks.yaml: adapters/claude/hooks/sem-entrada.sh'
+  end
+
+  def test_rejects_invalid_hook_manifest_entry
+    File.write(File.join(@root, 'adapters/claude/hooks.yaml'),
+               "version: 1\nruntime: claude\nhooks:\n  - file: ../fora.sh\n    event: PreToolUse\n    matcher: Bash\n")
+    assert(errors.any? { |error| error.start_with?('hook inválido em adapters/claude/hooks.yaml') })
+  end
+
+  def install_user(home, *args)
+    Open3.capture2e({ 'HOME' => home }, 'ruby', File.join(@root, 'scripts/install-agents.rb'),
+                    '--user', '--agents', 'claude', *args)
+  end
+
+  def test_user_installation_links_and_registers_claude_hook_preserving_settings
+    home = File.join(@temp, 'personal-hooks')
+    settings = File.join(home, '.claude/settings.json')
+    FileUtils.mkdir_p(File.dirname(settings))
+    original = JSON.pretty_generate(
+      'hooks' => { 'PreToolUse' => [{ 'matcher' => 'Bash',
+                                      'hooks' => [{ 'type' => 'command', 'command' => '$HOME/.claude/hooks/outro.sh' }] }],
+                   'Stop' => [{ 'hooks' => [{ 'type' => 'command', 'command' => 'true' }] }] },
+      'theme' => 'dark', 'attribution' => { 'commit' => '', 'pr' => '' }
+    ) + "\n"
+    File.write(settings, original)
+    FileUtils.chmod(0o600, settings)
+    link = File.join(home, '.claude/hooks/attribution-guard.sh')
+
+    output, status = install_user(home)
+    assert status.success?
+    assert_includes output, "settings: #{File.realpath(settings)}"
+    assert_equal original, File.read(settings)
+    refute File.symlink?(link)
+
+    _, status = install_user(home, '--apply')
+    assert status.success?
+    assert_equal File.realpath(File.join(@root, 'adapters/claude/hooks/attribution-guard.sh')), File.realpath(link)
+    data = JSON.parse(File.read(settings))
+    assert_equal 'dark', data['theme']
+    assert_equal({ 'commit' => '', 'pr' => '' }, data['attribution'])
+    assert_equal JSON.parse(original)['hooks']['Stop'], data['hooks']['Stop']
+    assert_equal 1, data['hooks']['PreToolUse'].length
+    assert_equal ['$HOME/.claude/hooks/outro.sh', '$HOME/.claude/hooks/attribution-guard.sh'],
+                 data['hooks']['PreToolUse'][0]['hooks'].map { |hook| hook['command'] }
+    assert_equal original, File.read(settings + '.ai-agent-config.bak')
+    assert_equal 0o600, File.stat(settings).mode & 0o777
+
+    applied = File.read(settings)
+    output, status = install_user(home, '--apply')
+    assert status.success?
+    assert_includes output, '0 alteração(ões)'
+    assert_equal applied, File.read(settings)
+  end
+
+  def test_user_installation_creates_settings_when_absent
+    home = File.join(@temp, 'personal-new')
+    FileUtils.mkdir_p(home)
+    _, status = install_user(home, '--apply')
+    assert status.success?
+    settings = File.join(home, '.claude/settings.json')
+    assert_equal({ 'hooks' => { 'PreToolUse' => [{ 'matcher' => 'Bash', 'hooks' => [
+                   { 'type' => 'command', 'command' => '$HOME/.claude/hooks/attribution-guard.sh' }
+                 ] }] } }, JSON.parse(File.read(settings)))
+    refute File.exist?(settings + '.ai-agent-config.bak')
+  end
+
+  def test_user_installation_refuses_unreadable_settings_before_writes
+    home = File.join(@temp, 'personal-broken')
+    settings = File.join(home, '.claude/settings.json')
+    FileUtils.mkdir_p(File.dirname(settings))
+    File.write(settings, '{ "hooks": ')
+    output, status = install_user(home, '--apply')
+    refute status.success?
+    assert_includes output, 'settings não é JSON válido, preservado'
+    assert_equal '{ "hooks": ', File.read(settings)
+    refute File.exist?(File.join(home, '.claude/hooks'))
+    refute File.exist?(File.join(home, '.claude/CLAUDE.md'))
+  end
+
+  def test_project_installation_does_not_install_hooks
+    project = File.join(@temp, 'consumer-hooks')
+    FileUtils.mkdir_p(project)
+    _, status = install(project, '--agents', 'claude', '--apply')
+    assert status.success?
+    refute File.exist?(File.join(project, '.claude/hooks'))
+    refute File.exist?(File.join(project, '.claude/settings.json'))
+  end
+
   def install(project, *args)
     Open3.capture2e('ruby', File.join(@root, 'scripts', 'install-agents.rb'), '--project', project, *args)
   end
