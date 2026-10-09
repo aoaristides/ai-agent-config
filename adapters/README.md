@@ -48,8 +48,8 @@ validação recusa script sem entrada, entrada sem script e hook não executáve
 
 `scripts/install-agents.rb --user --agents claude` liga os hooks declarados:
 cria o symlink em `~/.claude/hooks/` e acrescenta o comando ao grupo do matcher
-em `hooks.<evento>` do `~/.claude/settings.json`. Ele só acrescenta: as demais
-chaves e hooks ficam como estão, e um hook já registrado não é duplicado. Antes
+em `hooks.<evento>` do `~/.claude/settings.json`. Nos hooks ele só acrescenta:
+os demais ficam como estão, e um hook já registrado não é duplicado. Antes
 da primeira alteração grava `settings.json.ai-agent-config.bak`, que nunca é
 substituído. Recusa, sem escrever nada, `settings.json` que não seja JSON válido
 e arquivo comum já existente no lugar do symlink. O arquivo é regravado com
@@ -60,12 +60,14 @@ desta máquina dentro de um `settings.json` versionado. Sessões em nuvem não l
 `~/.claude`; lá o registro precisa estar no `.claude/settings.json` do projeto,
 com o script versionado junto.
 
-O instalador não toca na chave `attribution`. Para o harness também deixar de
-pedir a atribuição, mantenha no `~/.claude/settings.json`:
-
-```json
-{ "attribution": { "commit": "", "pr": "", "sessionUrl": false } }
-```
+No mesmo comando, o instalador garante no `~/.claude/settings.json` as chaves
+declaradas em `adapters/claude/settings.yaml`. Hoje é só `attribution`, com
+`commit` e `pr` vazios e `sessionUrl: false`, para o harness também deixar de
+pedir a atribuição. Ao contrário dos hooks, essas chaves são impostas: valor
+diferente no destino é sobrescrito, e o plano avisa qual chave antes de aplicar
+(`settings: attribution.commit tem outro valor e será sobrescrito`). Subchaves
+não declaradas ficam como estão. O manifesto aceita apenas mappings e escalares;
+listas e a chave `hooks` são recusadas pela validação.
 
 O hook só enxerga a tool `Bash`: mensagem lida de arquivo (`git commit -F`) e PR
 criado por tool MCP dependem apenas da regra do núcleo.

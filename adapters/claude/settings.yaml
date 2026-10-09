@@ -1,0 +1,12 @@
+# Chaves que scripts/install-agents.rb --user garante em ~/.claude/settings.json.
+# Valor diferente no destino é sobrescrito; chaves não listadas são preservadas.
+# Hooks não entram aqui: são declarados em hooks.yaml.
+version: 1
+runtime: claude
+settings:
+  # Sem atribuição ao agente em commits e PRs (regra do núcleo); o hook
+  # attribution-guard.sh cobre o caso em que o modelo copia o trailer do histórico.
+  attribution:
+    commit: ""
+    pr: ""
+    sessionUrl: false

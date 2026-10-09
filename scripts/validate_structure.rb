@@ -15,6 +15,7 @@ module StructureValidation
   MODEL_RUNTIMES = %w[codex claude antigravity].freeze
   MODEL_SELECTION_MODES = %w[exact alias advisory].freeze
   CLAUDE_HOOKS_MANIFEST = 'adapters/claude/hooks.yaml'
+  CLAUDE_SETTINGS_MANIFEST = 'adapters/claude/settings.yaml'
   HOOK_FILE = /\A[a-z0-9]+(?:-[a-z0-9]+)*\.sh\z/
   HOOK_EVENTS = %w[PreToolUse PostToolUse].freeze
   AGENT_SECTIONS = ['Missão', 'Acione quando', 'Não acione quando', 'Contexto mínimo',
@@ -122,6 +123,7 @@ module StructureValidation
       errors << "script não executável: #{name}" unless File.executable?(File.join(root, 'scripts', name))
     end
     validate_claude_hooks(root, errors)
+    validate_claude_settings(root, errors)
     %w[CLAUDE.md].each do |file|
       path = File.join(root, file)
       unless File.file?(path) && File.read(path, encoding: 'UTF-8').match?(/^@(?:\.\/)?AGENTS\.md\s*$/)
@@ -143,6 +145,31 @@ module StructureValidation
       raise ArgumentError, "#{CLAUDE_HOOKS_MANIFEST} deve ter version 1, runtime claude e hooks como lista"
     end
     data['hooks']
+  end
+
+  # Mapping `settings` de adapters/claude/settings.yaml; vazio quando o arquivo não existe.
+  def self.claude_settings(root)
+    path = File.join(root, CLAUDE_SETTINGS_MANIFEST)
+    return {} unless File.file?(path)
+
+    data = YAML.safe_load(File.read(path, encoding: 'UTF-8'), permitted_classes: [], permitted_symbols: [], aliases: false)
+    unless data.is_a?(Hash) && data['version'] == 1 && data['runtime'] == 'claude' && data['settings'].is_a?(Hash)
+      raise ArgumentError, "#{CLAUDE_SETTINGS_MANIFEST} deve ter version 1, runtime claude e settings como mapping"
+    end
+    data['settings']
+  end
+
+  def self.validate_claude_settings(root, errors)
+    settings = claude_settings(root)
+    errors << "hooks pertencem a #{CLAUDE_HOOKS_MANIFEST}, não a #{CLAUDE_SETTINGS_MANIFEST}" if settings.key?('hooks')
+    invalid = lambda do |node, path|
+      next node.flat_map { |key, value| key.is_a?(String) ? invalid.call(value, path + [key]) : [path.join('.')] } if node.is_a?(Hash)
+
+      [String, Integer, Float, TrueClass, FalseClass].any? { |type| node.is_a?(type) } ? [] : [path.join('.')]
+    end
+    invalid.call(settings, []).each { |path| errors << "valor não suportado em #{CLAUDE_SETTINGS_MANIFEST}: #{path}" }
+  rescue Psych::Exception, ArgumentError => e
+    errors << "manifesto de settings inválido: #{e.message}"
   end
 
   def self.validate_claude_hooks(root, errors)

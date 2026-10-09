@@ -73,8 +73,10 @@ module AgentInstallation
         edits[target] = context_for.call(agent)
       end
     end
-    # Hooks são do escopo pessoal do Claude: o link é absoluto e o settings.json de projeto é versionado.
-    hooks = options[:user] && options[:agents].include?('claude') ? StructureValidation.claude_hooks(root) : []
+    # Hooks e settings são do escopo pessoal do Claude: o link é absoluto e o settings.json de projeto é versionado.
+    personal_claude = options[:user] && options[:agents].include?('claude')
+    hooks = personal_claude ? StructureValidation.claude_hooks(root) : []
+    defaults = personal_claude ? StructureValidation.claude_settings(root) : {}
     hooks.each do |hook|
       links[File.join(base, '.claude/hooks', hook['file'])] = File.join(root, 'adapters/claude/hooks', hook['file'])
     end
@@ -106,12 +108,13 @@ module AgentInstallation
       end
       planned << [:rules, target, updated, old, backup]
     end
-    unless hooks.empty?
+    unless hooks.empty? && defaults.empty?
       target = File.join(base, '.claude/settings.json')
       reject_symlink_ancestors!(target, base)
       raise ArgumentError, "settings é symlink ou diretório, preservado: #{target}" if File.symlink?(target) || File.directory?(target)
       old = File.file?(target) ? File.read(target, encoding: 'UTF-8') : nil
-      updated = register_hooks(old, hooks, target)
+      updated, overwritten = configure_settings(old, hooks, defaults, target)
+      overwritten.each { |key| puts "[install-agents] settings: #{key} tem outro valor e será sobrescrito." }
       if updated
         # Sem bloco gerenciado em JSON: o backup guarda o estado anterior à primeira alteração e nunca é substituído.
         backup = target + '.ai-agent-config.bak'
@@ -155,32 +158,61 @@ module AgentInstallation
     1
   end
 
-  # Devolve o settings.json com os hooks registrados, ou nil quando todos já estão lá.
-  # Só acrescenta entradas; o restante do arquivo é preservado.
-  def self.register_hooks(text, hooks, target)
+  # Devolve [settings.json atualizado ou nil se nada muda, chaves existentes que serão sobrescritas].
+  # Hooks só são acrescentados; as chaves de `defaults` são impostas; o restante é preservado.
+  def self.configure_settings(text, hooks, defaults, target)
     data = text.nil? || text.strip.empty? ? {} : JSON.parse(text)
-    registry = data.is_a?(Hash) ? (data['hooks'] ||= {}) : nil
-    raise ArgumentError, "settings com formato inesperado, preservado: #{target}" unless registry.is_a?(Hash)
+    raise ArgumentError, "settings com formato inesperado, preservado: #{target}" unless data.is_a?(Hash)
 
-    changed = false
-    hooks.each do |hook|
+    overwritten = []
+    changed = impose_settings(data, defaults, [], overwritten)
+    changed = register_hooks(data, hooks, target) || changed
+    return [nil, overwritten] unless changed
+
+    [JSON.pretty_generate(data) + (text.nil? || text.end_with?("\n") ? "\n" : ''), overwritten]
+  rescue JSON::ParserError
+    raise ArgumentError, "settings não é JSON válido, preservado: #{target}"
+  end
+
+  def self.impose_settings(node, desired, path, overwritten)
+    desired.reduce(false) do |changed, (key, value)|
+      here = path + [key]
+      if value.is_a?(Hash)
+        unless node[key].is_a?(Hash)
+          overwritten << here.join('.') if node.key?(key)
+          node[key] = {}
+          changed = true
+        end
+        impose_settings(node[key], value, here, overwritten) || changed
+      elsif node.key?(key) && node[key] == value
+        changed
+      else
+        overwritten << here.join('.') if node.key?(key)
+        node[key] = value
+        true
+      end
+    end
+  end
+
+  def self.register_hooks(data, hooks, target)
+    return false if hooks.empty?
+
+    registry = data['hooks'] ||= {}
+    raise ArgumentError, "hooks com formato inesperado, preservado: #{target}" unless registry.is_a?(Hash)
+
+    hooks.reduce(false) do |changed, hook|
       groups = registry[hook['event']] ||= []
       unless groups.is_a?(Array) && groups.all? { |g| g.is_a?(Hash) && (g['hooks'].nil? || g['hooks'].is_a?(Array)) }
         raise ArgumentError, "hooks.#{hook['event']} com formato inesperado, preservado: #{target}"
       end
       installed = "/.claude/hooks/#{hook['file']}"
-      next if groups.any? { |g| Array(g['hooks']).any? { |h| h.is_a?(Hash) && h['command'].to_s.include?(installed) } }
+      next changed if groups.any? { |g| Array(g['hooks']).any? { |h| h.is_a?(Hash) && h['command'].to_s.include?(installed) } }
 
       group = groups.find { |g| g['matcher'] == hook['matcher'] }
       groups << (group = { 'matcher' => hook['matcher'], 'hooks' => [] }) unless group
       (group['hooks'] ||= []) << { 'type' => 'command', 'command' => "$HOME#{installed}" }
-      changed = true
+      true
     end
-    return nil unless changed
-
-    JSON.pretty_generate(data) + (text.nil? || text.end_with?("\n") ? "\n" : '')
-  rescue JSON::ParserError
-    raise ArgumentError, "settings não é JSON válido, preservado: #{target}"
   end
 
   def self.same_link?(target, source)

@@ -45,9 +45,11 @@ plano após resolver a causa. Não há promessa de transação entre vários arq
 
 No escopo pessoal do Claude Code, o mesmo comando liga os hooks declarados em
 `adapters/claude/hooks.yaml`: symlink em `~/.claude/hooks/` e registro em
-`~/.claude/settings.json`, só acrescentando entradas. Antes da primeira
-alteração grava `settings.json.ai-agent-config.bak`, preservado nas seguintes.
-A instalação por projeto não liga hooks. Detalhes em
+`~/.claude/settings.json`, só acrescentando entradas. Também impõe as chaves de
+`adapters/claude/settings.yaml` (hoje `attribution`), avisando no plano quando
+sobrescreve um valor existente. Antes da primeira alteração grava
+`settings.json.ai-agent-config.bak`, preservado nas seguintes. A instalação por
+projeto não liga hooks nem altera settings. Detalhes em
 [adapters/README.md](../adapters/README.md#hooks-do-claude-code).
 
 Os blocos gerados registram o caminho absoluto da fonte local. Não versione uma

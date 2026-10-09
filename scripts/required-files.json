@@ -193,6 +193,7 @@
   "scripts/install-agents.rb",
   "scripts/test-integration.rb",
   "adapters/claude/hooks.yaml",
+  "adapters/claude/settings.yaml",
   "adapters/claude/hooks/attribution-guard.sh",
   "docs/agent-integration.md",
   "docs/agent-platform.md",

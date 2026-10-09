@@ -657,7 +657,7 @@ class IntegrationTest < Minitest::Test
     assert_equal File.realpath(File.join(@root, 'adapters/claude/hooks/attribution-guard.sh')), File.realpath(link)
     data = JSON.parse(File.read(settings))
     assert_equal 'dark', data['theme']
-    assert_equal({ 'commit' => '', 'pr' => '' }, data['attribution'])
+    assert_equal({ 'commit' => '', 'pr' => '', 'sessionUrl' => false }, data['attribution'])
     assert_equal JSON.parse(original)['hooks']['Stop'], data['hooks']['Stop']
     assert_equal 1, data['hooks']['PreToolUse'].length
     assert_equal ['$HOME/.claude/hooks/outro.sh', '$HOME/.claude/hooks/attribution-guard.sh'],
@@ -678,10 +678,47 @@ class IntegrationTest < Minitest::Test
     _, status = install_user(home, '--apply')
     assert status.success?
     settings = File.join(home, '.claude/settings.json')
-    assert_equal({ 'hooks' => { 'PreToolUse' => [{ 'matcher' => 'Bash', 'hooks' => [
-                   { 'type' => 'command', 'command' => '$HOME/.claude/hooks/attribution-guard.sh' }
-                 ] }] } }, JSON.parse(File.read(settings)))
+    assert_equal({ 'attribution' => { 'commit' => '', 'pr' => '', 'sessionUrl' => false },
+                   'hooks' => { 'PreToolUse' => [{ 'matcher' => 'Bash', 'hooks' => [
+                     { 'type' => 'command', 'command' => '$HOME/.claude/hooks/attribution-guard.sh' }
+                   ] }] } }, JSON.parse(File.read(settings)))
     refute File.exist?(settings + '.ai-agent-config.bak')
+  end
+
+  def test_user_installation_imposes_attribution_and_reports_overwrites
+    { 'custom' => { 'commit' => 'Assistido por IA', 'pr' => '', 'extra' => 'fica' }, 'boolean' => false }.each do |name, value|
+      home = File.join(@temp, "personal-attribution-#{name}")
+      settings = File.join(home, '.claude/settings.json')
+      FileUtils.mkdir_p(File.dirname(settings))
+      original = JSON.pretty_generate('attribution' => value, 'theme' => 'dark') + "\n"
+      File.write(settings, original)
+
+      output, status = install_user(home)
+      assert status.success?
+      assert_includes output, name == 'custom' ? 'settings: attribution.commit tem outro valor' : 'settings: attribution tem outro valor'
+      assert_equal original, File.read(settings)
+
+      _, status = install_user(home, '--apply')
+      assert status.success?
+      data = JSON.parse(File.read(settings))
+      expected = { 'commit' => '', 'pr' => '', 'sessionUrl' => false }
+      expected = { 'commit' => '', 'pr' => '', 'extra' => 'fica', 'sessionUrl' => false } if name == 'custom'
+      assert_equal expected, data['attribution']
+      assert_equal 'dark', data['theme']
+      assert_equal original, File.read(settings + '.ai-agent-config.bak')
+
+      output, status = install_user(home, '--apply')
+      assert status.success?
+      assert_includes output, '0 alteração(ões)'
+      refute_includes output, 'será sobrescrito'
+    end
+  end
+
+  def test_rejects_hooks_and_unsupported_values_in_settings_manifest
+    File.write(File.join(@root, 'adapters/claude/settings.yaml'),
+               "version: 1\nruntime: claude\nsettings:\n  hooks: {}\n  permissions:\n    allow: [Bash]\n")
+    assert_includes errors, 'hooks pertencem a adapters/claude/hooks.yaml, não a adapters/claude/settings.yaml'
+    assert_includes errors, 'valor não suportado em adapters/claude/settings.yaml: permissions.allow'
   end
 
   def test_user_installation_refuses_unreadable_settings_before_writes
