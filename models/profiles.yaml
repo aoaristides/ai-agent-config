@@ -1,5 +1,16 @@
 version: 1
 profiles:
+  planning:
+    intent: planejamento, arquitetura, decisões e revisão de mudanças críticas
+    priorities:
+      - reasoning
+      - quality
+  execution:
+    intent: implementação e testes a partir de escopo e critérios de aceite explícitos
+    priorities:
+      - coding
+      - efficiency
+      - tool-use
   reasoning-high:
     intent: raciocínio profundo para decisões ambíguas ou difíceis de reverter
     priorities:

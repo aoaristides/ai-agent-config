@@ -12,7 +12,7 @@ module StructureValidation
   TOPIC_FILES = %w[context.md roadmap.md progress.md notes.md exercises.md].freeze
   REQUIRED_AGENTS = %w[orchestrator product-manager architect software-engineer tester
                        code-reviewer security-engineer performance-engineer].freeze
-  REQUIRED_MODEL_PROFILES = %w[reasoning-high coding-high coding-balanced analysis-medium review-high].freeze
+  REQUIRED_MODEL_PROFILES = %w[planning execution reasoning-high coding-high coding-balanced analysis-medium review-high].freeze
   MODEL_RUNTIMES = %w[codex claude antigravity].freeze
   MODEL_SELECTION_MODES = %w[exact alias advisory].freeze
   CLAUDE_HOOKS_MANIFEST = 'adapters/claude/hooks.yaml'

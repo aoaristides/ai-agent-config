@@ -9,6 +9,7 @@ require 'minitest/autorun'
 require 'tmpdir'
 require 'fileutils'
 require 'open3'
+require 'shellwords'
 require 'digest'
 require_relative 'context_compiler'
 require_relative 'validate_structure'
@@ -297,6 +298,60 @@ class IntegrationTest < Minitest::Test
     assert_equal 'advisory', result.fetch('selection_mode')
     assert_equal false, result.fetch('materializable')
     assert_equal true, result.fetch('fallback')
+  end
+
+  def test_model_resolver_previews_planning_sessions_for_each_host
+    script = File.join(@root, 'scripts/resolve-model.rb')
+    expected = {
+      'codex' => %w[codex --model=gpt-6.2-sol --sandbox read-only],
+      'claude' => %w[claude --model=claude-opus-5-5 --permission-mode plan],
+      'antigravity' => %w[agy --model=gemini-4-carbon-high --mode plan]
+    }
+    expected.each do |runtime, command|
+      output, status = Open3.capture2e('ruby', script, '--runtime', runtime, '--phase', 'plan', '--format', 'command')
+      assert status.success?, output
+      assert_equal command, Shellwords.split(output)
+    end
+  end
+
+  def test_model_resolver_distinguishes_phase_override_from_fallback
+    script = File.join(@root, 'scripts/resolve-model.rb')
+    args = %W[ruby #{script} --runtime claude --agent software-engineer --phase execute --format json]
+    output, status = Open3.capture2e(*args, '--model', 'claude-haiku-5-5')
+    assert status.success?, output
+    result = JSON.parse(output)
+    assert_equal 'coding-high', result.fetch('agent_profile')
+    assert_equal 'execution', result.fetch('profile')
+    assert_equal 'haiku', result.fetch('host_selector')
+    assert_equal 'claude-haiku-5-5', result.fetch('explicit_model')
+    refute result.fetch('fallback')
+
+    output, status = Open3.capture2e(*args, '--unavailable', 'claude-sonnet-5-5')
+    assert status.success?, output
+    result = JSON.parse(output)
+    assert_equal 'claude-haiku-5-5', result.fetch('model')
+    assert result.fetch('fallback')
+
+    output, status = Open3.capture2e(*args, '--model', 'claude-opus-5-5')
+    refute status.success?
+    assert_includes output, 'não está entre as opções disponíveis de execute'
+  end
+
+  def test_phase_launch_passes_exact_model_to_cli_and_preserves_project_directory
+    script = File.join(@root, 'scripts/resolve-model.rb')
+    bin = File.join(@temp, 'bin')
+    project = File.join(@temp, 'project')
+    FileUtils.mkdir_p([bin, project])
+    cli = File.join(bin, 'agy')
+    File.write(cli, "#!/bin/sh\npwd -P\nprintf '%s\\n' \"$@\"\nexit 23\n")
+    File.chmod(0o755, cli)
+
+    output, status = Open3.capture2e(
+      { 'PATH' => [bin, ENV.fetch('PATH')].join(File::PATH_SEPARATOR) }, 'ruby', script,
+      '--runtime', 'antigravity', '--phase', 'execute', '--model', 'gemini-3.8-flash-medium', '--launch', chdir: project
+    )
+    assert_equal 23, status.exitstatus, output
+    assert_equal [File.realpath(project), '--model=gemini-3.8-flash-medium'], output.lines.map(&:strip)
   end
 
   def test_model_resolver_fails_closed_when_candidates_are_exhausted
@@ -837,7 +892,8 @@ class IntegrationTest < Minitest::Test
     assert_includes File.read(rules), '## Modos de contexto'
     assert_includes File.read(File.join(project, 'CLAUDE.md')), '@AGENTS.md'
     refute File.exist?(File.join(project, 'GEMINI.md'))
-    assert File.file?(File.join(project, '.agents/rules/ai-agent-config.md'))
+    antigravity_rules = File.read(File.join(project, '.agents/rules/ai-agent-config.md'))
+    assert_match(/\A---\ntrigger: always_on\n/, antigravity_rules)
     assert_equal source_skill_names.length, Dir[File.join(project, '.agents', 'skills', '*')].length
     assert_equal File.realpath(File.join(@root, 'skills', 'mentor-tecnico')),
                  File.realpath(File.join(project, '.claude', 'skills', 'mentor-tecnico'))
@@ -847,6 +903,58 @@ class IntegrationTest < Minitest::Test
     _, status = install(project, '--apply')
     assert status.success?
     assert_equal before, File.read(rules)
+  end
+
+  def test_antigravity_project_installation_upgrades_legacy_rule_without_replacing_user_content
+    project = File.join(@temp, 'antigravity-legacy')
+    rule = File.join(project, '.agents/rules/ai-agent-config.md')
+    FileUtils.mkdir_p(File.dirname(rule))
+    user_content = "# Regra do projeto\n\nTexto próprio.\n\n"
+    legacy = user_content + "<!-- ai-agent-config:begin -->\nRegra antiga\n<!-- ai-agent-config:end -->\n"
+    File.write(rule, legacy)
+
+    output, status = install(project, '--agents', 'antigravity')
+    assert status.success?, output
+    assert_equal legacy, File.read(rule)
+
+    output, status = install(project, '--agents', 'antigravity', '--apply')
+    assert status.success?, output
+    installed = File.read(rule)
+    assert_match(/\A---\ntrigger: always_on\n/, installed)
+    assert_includes installed, user_content
+    assert_includes installed, '## Roteamento padrão'
+
+    output, status = install(project, '--agents', 'antigravity', '--apply')
+    assert status.success?, output
+    assert_includes output, '0 alteração(ões)'
+    assert_equal installed, File.read(rule)
+  end
+
+  def test_antigravity_project_installation_preserves_existing_trigger
+    project = File.join(@temp, 'antigravity-custom-trigger')
+    rule = File.join(project, '.agents/rules/ai-agent-config.md')
+    FileUtils.mkdir_p(File.dirname(rule))
+    original = "---\ntrigger: manual\ndescription: Regra do projeto\n---\n\n# Regra existente\n"
+    File.write(rule, original)
+
+    output, status = install(project, '--agents', 'antigravity', '--apply')
+    assert status.success?, output
+    assert File.read(rule).start_with?(original)
+    assert_equal original, File.read(rule + '.ai-agent-config.bak')
+  end
+
+  def test_antigravity_project_installation_preserves_rule_with_invalid_frontmatter
+    project = File.join(@temp, 'antigravity-invalid-trigger')
+    rule = File.join(project, '.agents/rules/ai-agent-config.md')
+    FileUtils.mkdir_p(File.dirname(rule))
+    original = "---\ntrigger: alwaysOn\n---\n\n# Regra existente\n"
+    File.write(rule, original)
+
+    output, status = install(project, '--agents', 'antigravity', '--apply')
+    refute status.success?
+    assert_includes output, 'sem trigger válido, preservado'
+    assert_equal original, File.read(rule)
+    refute File.exist?(File.join(project, '.agents/skills'))
   end
 
   def test_gemini_cli_is_rejected_without_writes

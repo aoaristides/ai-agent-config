@@ -4,6 +4,14 @@ capabilities:
   subagent_materialization: true
   model_selection: exact
 profiles:
+  planning:
+    primary: gpt-6.2-sol
+    fallbacks:
+      - gpt-6-astra
+  execution:
+    primary: gpt-6-luna
+    fallbacks:
+      - gpt-6.2-sol
   reasoning-high:
     primary: gpt-6-astra
     fallbacks:

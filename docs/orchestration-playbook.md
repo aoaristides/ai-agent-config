@@ -36,6 +36,13 @@ concede acesso ao MCP nem ao filesystem. Confira a conexão no host utilizado.
 
 ## Escolher o owner da etapa
 
+O [roteamento padrão](../core/agent-platform.md#roteamento-padrão) chega aos
+três hosts pelas regras geradas. Em uma sessão com as regras atualizadas,
+descreva a tarefa normalmente, com escopo, restrições e autorização. O host
+seleciona o responsável e aplica o `orchestrator` quando houver etapas ou
+responsabilidades para coordenar. Por exemplo: “Planeje, implemente localmente
+e rode os testes de aceite da alteração descrita no ticket.”
+
 | Etapa | Owner do catálogo | Entrega esperada |
 | --- | --- | --- |
 | Escopo e aceite ambíguos | `product-manager` | Problema, limites e critérios observáveis |
@@ -64,6 +71,50 @@ aceitar a seleção. No Antigravity, `selection_mode: advisory` e
 `materializable: false` expressam preferência, sem provar que o modelo foi
 aplicado a um subagente. O resultado do resolver não demonstra que a sessão
 real carregou o modelo nem que o provedor está disponível.
+
+## Escolher modelos por etapa
+
+| Host | `--phase plan` | `--phase execute` | Alternativa de execução |
+| --- | --- | --- | --- |
+| Codex | GPT-6.2 Sol | GPT-6 Luna | GPT-6.2 Sol para uma implementação que exija mais raciocínio |
+| Claude Code | Opus 5.5 | Sonnet 5.5 | Haiku 5.5 para tarefas bem delimitadas |
+| Antigravity CLI | Gemini 4 Carbon (High) | Gemini 4 Hydrogen (Medium) | Gemini 3.8 Flash (Medium) |
+
+Entre no diretório do projeto consumidor para que o cliente carregue seu
+contexto. `--format command` mostra como a sessão será aberta. Substitua por
+`--launch` para abri-la. O parâmetro `--model` permite escolher outro modelo
+declarado para a etapa, só para aquela chamada.
+
+```bash
+ruby ~/ai-agent-config/scripts/resolve-model.rb --runtime codex --phase plan --format command
+ruby ~/ai-agent-config/scripts/resolve-model.rb --runtime claude --phase execute --model claude-haiku-5-5 --launch
+ruby ~/ai-agent-config/scripts/resolve-model.rb --runtime antigravity --phase execute --model gemini-3.8-flash-medium --launch
+```
+
+Para mudar o padrão das próximas chamadas, altere `primary` e `fallbacks`
+de `planning` ou `execution` no `models.yaml` do host em `adapters/`. No Claude,
+um modelo novo também precisa de uma entrada em `selectors` para o perfil de
+subagente. Confira o ID no host antes de mudar o arquivo. `agy models` lista
+os IDs acessíveis no Antigravity. O launcher passa o ID concreto para a sessão
+principal. Exiba o comando ou consulte `--format json` para auditar a resolução.
+Somente informe `--unavailable` quando o host confirmar a indisponibilidade
+do modelo. Uma falha da sessão é devolvida ao operador.
+
+Em `plan`, o launcher pede sandbox `read-only` ao Codex e o modo `plan` a
+Claude Code e Antigravity. Preserve o plano aprovado em um artefato do projeto
+por um caminho com permissão de escrita. Passe o link ou caminho à sessão de
+`execute`, junto com escopo, critérios de aceite e autoridade. Se a execução
+encontrar uma decisão em aberto que afete o contrato, retorne ao planejamento.
+Para uma revisão crítica, abra outra sessão com `plan` e entregue o diff e os
+critérios. A passagem entre sessões é feita pelo operador.
+
+`--agent` com `--phase` usa a mesma escolha para orientar o modelo do agente.
+O campo `host_selector` mantém a semântica do adapter para subagentes. `--launch`
+abre uma sessão principal da CLI e o operador fornece o contrato ou handoff.
+No Antigravity, a CLI aceita o modelo da sessão, enquanto o resolver segue
+reportando `advisory` para materialização de subagentes. O Antigravity também
+oferece seu [Orchestrator nativo](https://antigravity.google/docs/models),
+que pode combinar Carbon e Hydrogen dentro do mesmo host conforme a conta.
 
 ## Exemplo de ponta a ponta
 

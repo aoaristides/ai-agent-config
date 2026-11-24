@@ -10,8 +10,17 @@ selectors:
   claude-sonnet-5-5: sonnet
   claude-sonnet-5: sonnet
   claude-sonnet-4-6: sonnet
+  claude-haiku-5-5: haiku
   claude-haiku-4-5-20251001: haiku
 profiles:
+  planning:
+    primary: claude-opus-5-5
+    fallbacks:
+      - claude-opus-5
+  execution:
+    primary: claude-sonnet-5-5
+    fallbacks:
+      - claude-haiku-5-5
   reasoning-high:
     primary: claude-opus-5-5
     fallbacks:

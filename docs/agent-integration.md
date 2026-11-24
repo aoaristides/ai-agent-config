@@ -65,10 +65,20 @@ publicar arquivos de configuração gerados.
 | Cursor | .agents/skills | AGENTS.md com núcleo expandido |
 | Antigravity | .agents/skills | .agents/rules/ai-agent-config.md |
 
-No Antigravity, verifique no painel Rules se a regra foi reconhecida e marque
-Always On. O instalador não afirma que escrever Markdown configurou a ativação
-na versão instalada. Versões antigas podem usar .agent/rules e .agent/skills;
-confira os caminhos na UI antes de optar por um adaptador legado.
+No Antigravity, o instalador grava `trigger: always_on` no cabeçalho da regra
+de projeto e acrescenta esse cabeçalho ao reaplicar uma instalação antiga sem
+cabeçalho. Se já houver um `trigger` reconhecido, ele é preservado. Em caso de
+cabeçalho inválido, o instalador aponta o arquivo para correção. A regra
+pessoal em `~/.gemini/GEMINI.md` usa Markdown simples. Confira o carregamento
+em uma sessão nova, pelo painel Rules na interface gráfica. Veja os
+[formatos de regra do Antigravity](https://antigravity.google/docs/rules/#yaml-frontmatter-and-activation-modes).
+
+Para atualizar apenas a instalação por projeto do Antigravity, execute na raiz
+da biblioteca:
+
+```bash
+ruby scripts/install-agents.rb --project /caminho/absoluto/do/projeto --agents antigravity --apply
+```
 
 No escopo pessoal, Codex/Cursor usam .agents/skills, Claude usa
 .claude/skills e Antigravity usa .gemini/config/skills segundo a documentação

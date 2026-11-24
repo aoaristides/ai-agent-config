@@ -4,6 +4,14 @@ capabilities:
   subagent_materialization: false
   model_selection: advisory
 profiles:
+  planning:
+    primary: gemini-4-carbon-high
+    fallbacks:
+      - gemini-4-neon-high
+  execution:
+    primary: gemini-4-hydrogen-medium
+    fallbacks:
+      - gemini-3.8-flash-medium
   reasoning-high:
     primary: gemini-3.1-pro-high
     fallbacks:

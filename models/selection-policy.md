@@ -29,6 +29,10 @@ agent
    que o modelo foi aplicado pelo host.
 9. Não materialize subagente quando `materializable` for `false`; preserve a
    resolução como intenção e declare a limitação do runtime.
+10. Quando a etapa for escolhida explicitamente, `--phase plan` usa `planning`
+    e `--phase execute` usa `execution`. Com `--agent`, o contrato do agente
+    continua valendo e o perfil do catálogo aparece como `agent_profile` em
+    JSON/YAML. Sem `--phase`, use o perfil original do agente.
 
 ## Operação
 
@@ -61,3 +65,8 @@ Em seleção por alias, `model` representa o candidato concreto preferido e
 `host_selector` representa o controle realmente aceito pelo host. O alias pode
 ser móvel; quando o host expuser o modelo efetivamente executado, registre e
 compare esse valor em vez de presumir equivalência permanente.
+
+Para abrir uma sessão principal de CLI com o `model` concreto da etapa, use
+`--phase` com `--launch`. Essa opção inicia uma sessão no diretório atual e
+é independente das capacidades de materialização de subagentes. Veja os
+[exemplos de uso](../docs/orchestration-playbook.md#escolher-modelos-por-etapa).

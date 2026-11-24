@@ -5,6 +5,7 @@ require 'fileutils'
 require 'json'
 require 'optparse'
 require 'tempfile'
+require 'yaml'
 require_relative 'context_compiler'
 require_relative 'validate_structure'
 
@@ -12,6 +13,8 @@ module AgentInstallation
   BEGIN_MARK = '<!-- ai-agent-config:begin -->'
   END_MARK = '<!-- ai-agent-config:end -->'
   AGENTS = %w[codex claude cursor antigravity].freeze
+  ANTIGRAVITY_PROJECT_RULE = '.agents/rules/ai-agent-config.md'
+  ANTIGRAVITY_TRIGGERS = %w[always_on glob manual model_decision].freeze
 
   def self.run(args)
     options = { apply: false, agents: AGENTS }
@@ -60,7 +63,7 @@ module AgentInstallation
       else
         skill_path = agent == 'claude' ? '.claude/skills' : '.agents/skills'
         rule_path = { 'codex' => 'AGENTS.md', 'claude' => 'CLAUDE.md', 'cursor' => 'AGENTS.md',
-                      'antigravity' => '.agents/rules/ai-agent-config.md' }.fetch(agent)
+                      'antigravity' => ANTIGRAVITY_PROJECT_RULE }.fetch(agent)
       end
       skills.each { |name| links[File.join(base, skill_path, name)] = File.join(root, 'skills', name) }
       next unless rule_path
@@ -100,6 +103,9 @@ module AgentInstallation
         updated = text.sub(/#{Regexp.escape(BEGIN_MARK)}.*?#{Regexp.escape(END_MARK)}\n?/m) { block }
       else
         updated = text + (text.empty? ? '' : "\n\n") + block
+      end
+      if options[:project] && target == File.join(base, ANTIGRAVITY_PROJECT_RULE)
+        updated = antigravity_project_header(text, target) + updated
       end
       next if updated == text
       backup = old && !managed ? target + '.ai-agent-config.bak' : nil
@@ -149,13 +155,27 @@ module AgentInstallation
       end
     end
     if options[:agents].include?('antigravity') && options[:project]
-      puts '[install-agents] Antigravity: confira a regra ai-agent-config na UI e selecione Always On; ativação não certificada por arquivo.'
+      puts '[install-agents] Antigravity: confira o carregamento da regra ai-agent-config em uma nova sessão.'
     end
     puts '[install-agents] Concluído. Abra nova sessão e confira skills, regras e eventuais aliases duplicados do host.'
     0
   rescue ArgumentError, ContextCompiler::ConfigError, OptionParser::ParseError, SystemCallError => e
     warn "[install-agents] #{e.message}"
     1
+  end
+
+  def self.antigravity_project_header(text, target)
+    unless text.match?(/\A(?:\uFEFF)?---[ \t]*\r?\n/)
+      return "---\ntrigger: always_on\ndescription: Regras compartilhadas do ai-agent-config\n---\n\n"
+    end
+
+    header = text.match(/\A(?:\uFEFF)?---[ \t]*\r?\n(.*?)^---[ \t]*(?=\r?\n|\z)/m)
+    data = YAML.safe_load(header[1], aliases: false) if header
+    return '' if data.is_a?(Hash) && ANTIGRAVITY_TRIGGERS.include?(data['trigger'])
+
+    raise ArgumentError, "cabeçalho de regra Antigravity sem trigger válido, preservado: #{target}"
+  rescue Psych::Exception
+    raise ArgumentError, "cabeçalho YAML da regra Antigravity inválido, preservado: #{target}"
   end
 
   # Devolve [settings.json atualizado ou nil se nada muda, chaves existentes que serão sobrescritas].
