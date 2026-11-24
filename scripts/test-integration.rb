@@ -12,6 +12,7 @@ require 'open3'
 require 'digest'
 require_relative 'context_compiler'
 require_relative 'validate_structure'
+require_relative 'persistent_memory'
 
 class IntegrationTest < Minitest::Test
   def setup
@@ -44,6 +45,73 @@ class IntegrationTest < Minitest::Test
 
   def test_valid_source
     assert_empty errors
+  end
+
+  def test_local_memory_only_activates_without_ai_memory_integrations
+    File.write(File.join(@root, 'config/persistent-memory.yml'), "version: 1\nmode: local\nlocal_vault: ~/obsidian/claude-second-brain\n")
+    home = File.join(@temp, 'home')
+    FileUtils.mkdir_p(home)
+
+    result = PersistentMemory.resolve(root: @root, home: home)
+    assert_equal 'local', result[:effective_mode]
+    assert result[:local_enabled]
+
+    File.write(File.join(home, '.claude.json'), JSON.generate('mcpServers' => { 'ai-memory' => {} }))
+    result = PersistentMemory.resolve(root: @root, home: home)
+    assert_equal 'ai-memory', result[:effective_mode]
+    refute result[:local_enabled]
+    assert_includes result[:ai_memory_integrations], 'claude-mcp'
+  end
+
+  def test_local_memory_is_blocked_by_codex_and_antigravity_hooks
+    File.write(File.join(@root, 'config/persistent-memory.yml'), "version: 1\nmode: local\nlocal_vault: ~/obsidian/claude-second-brain\n")
+    home = File.join(@temp, 'home')
+    FileUtils.mkdir_p([File.join(home, '.codex'), File.join(home, '.gemini/config')])
+    File.write(File.join(home, '.codex/hooks.json'), JSON.generate('hooks' => { 'Stop' => [{ 'command' => 'ai-memory hook' }] }))
+    File.write(File.join(home, '.gemini/config/hooks.json'), JSON.generate('ai-memory' => { 'Stop' => [{ 'command' => 'ai-memory hook' }] }))
+
+    result = PersistentMemory.resolve(root: @root, home: home)
+    assert_equal 'ai-memory', result[:effective_mode]
+    assert_equal %w[codex-hooks antigravity-hooks], result[:ai_memory_integrations]
+  end
+
+  def test_project_scoped_mcp_blocks_local_memory
+    File.write(File.join(@root, 'config/persistent-memory.yml'), "version: 1\nmode: local\nlocal_vault: ~/obsidian/claude-second-brain\n")
+    project = File.join(@temp, 'consumer')
+    FileUtils.mkdir_p(project)
+    File.write(File.join(project, '.mcp.json'), JSON.generate('mcpServers' => { 'ai-memory' => {} }))
+
+    result = PersistentMemory.resolve(root: @root, home: File.join(@temp, 'empty-home'), project_dir: project)
+    assert_equal 'ai-memory', result[:effective_mode]
+    assert_includes result[:ai_memory_integrations], 'project-claude-mcp'
+  end
+
+  def test_require_local_cli_refuses_project_scoped_ai_memory
+    File.write(File.join(@root, 'config/persistent-memory.yml'), "version: 1\nmode: local\nlocal_vault: ~/obsidian/claude-second-brain\n")
+    home = File.join(@temp, 'home')
+    project = File.join(@temp, 'consumer')
+    FileUtils.mkdir_p([home, project])
+    File.write(File.join(project, '.mcp.json'), JSON.generate('mcpServers' => { 'ai-memory' => {} }))
+
+    output, status = Open3.capture2e({ 'HOME' => home }, 'ruby', File.join(@root, 'scripts/resolve-memory.rb'), '--require-local', chdir: project)
+    refute status.success?
+    assert_includes output, 'memória local bloqueada'
+  end
+
+  def test_invalid_memory_configuration_fails_closed
+    File.write(File.join(@root, 'config/persistent-memory.yml'), "version: 1\nmode: local\nmode: ai-memory\nlocal_vault: ~/obsidian/claude-second-brain\n")
+
+    assert errors.any? { |error| error.include?('chaves duplicadas na configuração de memória') }
+    assert_raises(PersistentMemory::ConfigError) { PersistentMemory.resolve(root: @root, home: @temp) }
+  end
+
+  def test_unreadable_host_configuration_blocks_local_memory
+    File.write(File.join(@root, 'config/persistent-memory.yml'), "version: 1\nmode: local\nlocal_vault: ~/obsidian/claude-second-brain\n")
+    home = File.join(@temp, 'home')
+    FileUtils.mkdir_p(home)
+    File.write(File.join(home, '.claude.json'), '{invalid')
+
+    assert_raises(PersistentMemory::ConfigError) { PersistentMemory.resolve(root: @root, home: home) }
   end
 
   def test_validation_is_independent_of_process_locale

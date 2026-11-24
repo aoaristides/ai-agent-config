@@ -6,7 +6,7 @@
 4. Execute primeiro verificações read-only e de baixo risco.
 5. Distinga causa raiz, fator contribuinte e coincidência.
 6. Pare antes de mitigação destrutiva ou produção sem autorização explícita.
-7. Registre aprendizado durável no cofre somente após confirmação por evidência.
+7. Registre aprendizado durável somente após confirmação por evidência e pedido explícito do usuário, no backend persistente efetivo.
 
 ## Saída mínima
 

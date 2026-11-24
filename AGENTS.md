@@ -4,7 +4,7 @@ Este repositório é a fonte versionada de configuração portátil para agentes
 
 Em tarefa não trivial, comece por [core/kernel.md](core/kernel.md) e
 [context-index.md](context-index.md). O núcleo canônico de comportamento e
-consulta ao cofre permanece em [context/agent-core.md](context/agent-core.md).
+consulta à memória permanece em [context/agent-core.md](context/agent-core.md).
 Este arquivo contém instruções de manutenção específicas do repositório; não o
 instale como regra global de projetos alheios. O compilador distribui somente o
 contexto compartilhado selecionado no manifesto.
@@ -30,7 +30,7 @@ contexto compartilhado selecionado no manifesto.
 
 - `skills/` é a fonte canônica das skills distribuídas por este repositório.
 - `knowledge/` contém conhecimento curado e reutilizável, não fatos voláteis sem fonte.
-- O cofre Obsidian `~/obsidian/claude-second-brain/` continua canônico para decisões reais, contexto vivo de projetos, preferências confirmadas e aprendizados observados.
+- O backend persistente efetivo de `config/persistent-memory.yml` é canônico para decisões reais, contexto vivo de projetos, preferências confirmadas e aprendizados observados; o cofre Obsidian original permanece preservado.
 - Não copie segredos, logs, outputs de build ou transcrições para este repositório.
 - Antes de alterar arquivos existentes, preserve conteúdo e compatibilidade; mudanças destrutivas exigem confirmação explícita.
 

@@ -48,8 +48,8 @@ quando o risco exigir referências adicionais. Siga
 - Não carregue uma árvore inteira quando o índice de um projeto apontar arquivos.
 - Não carregue `knowledge/` por associação vaga; comece pela dúvida concreta.
 - Pare de expandir quando os requisitos e as evidências já sustentarem a ação.
-- Contexto vivo e decisões reais pertencem ao cofre; aqui ficam contratos
-  portáteis, índices e templates.
+- Contexto vivo e decisões reais pertencem ao backend persistente efetivo de
+  `config/persistent-memory.yml`; aqui ficam contratos portáteis, índices e templates.
 
 ## Lacunas
 

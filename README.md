@@ -86,6 +86,9 @@ conhece nomes concretos, selectors e limitações do runtime.
 
 ## Como uma demanda é executada
 
+Veja também o [roteiro prático de coordenação entre Codex, Claude Code e
+Antigravity](docs/orchestration-playbook.md).
+
 1. **Bootstrap do host.** O adapter instalado informa a raiz deste repositório e
    carrega o kernel compartilhado. Regras do usuário, do host e do projeto
    consumidor continuam com precedência.
@@ -106,7 +109,8 @@ conhece nomes concretos, selectors e limitações do runtime.
    contexto ausente mantém o handoff `blocked`.
 7. **Persistência seletiva.** Código e configuração portátil ficam neste
    repositório. Decisões reais, estado vivo e aprendizados observados pertencem
-   ao cofre autorizado, nunca a transcrições ou logs brutos.
+   ao backend efetivo de `config/persistent-memory.yml`, somente por pedido
+   explícito e nunca como transcrições ou logs brutos.
 
 ## Agentes disponíveis
 
@@ -198,7 +202,7 @@ ainda não fazem parte desta implementação.
   `blocked`;
 - revisão independente exige outra sessão/agente ou revisão humana;
 - segredo, PII, log bruto e output de build não entram em adapters, packs ou no
-  cofre.
+  ai-memory.
 
 ## Instalação rápida
 
@@ -446,20 +450,18 @@ arquivo que já tenha sido versionado anteriormente.
 
 ## Segundo cérebro
 
-Este repositório guarda a parte **portátil e versionada** do segundo cérebro:
-comportamento dos agentes, perfil técnico, conhecimento curado, templates e
-trilhas de aprendizado.
+Este repositório guarda o contexto **portátil e versionado** dos agents:
+comportamento, perfil técnico, conhecimento curado, templates e trilhas de
+aprendizado. O segundo cérebro persistente usa um backend selecionável.
 
-O conhecimento **vivo e factual** continua separado no Obsidian:
-
-Vault:
-
-`~/obsidian/claude-second-brain/`
-
-O cofre continua sendo a fonte de verdade para decisões reais, estado de
-projetos, preferências confirmadas, gotchas e aprendizados observados. Não copie
-automaticamente notas entre os dois locais: defina a autoridade antes de
-registrar para evitar divergência.
+O backend persistente padrão é `ai-memory`. O modo local usa o cofre Obsidian
+existente somente para notas duráveis pedidas explicitamente; os scripts de
+captura de conversas continuam bloqueados. Se o modo local for selecionado
+enquanto qualquer integração `ai-memory` dos três hosts ainda estiver registrada,
+`ai-memory` prevalece e o cofre fica inativo. Consulte o
+[guia de seleção e ativação](docs/persistent-memory.md). As 189 notas compatíveis
+do Obsidian foram importadas para `default/second-brain`, preservando caminhos
+e links internos; o cofre original permanece preservado.
 
 ## Árvore do repositório
 

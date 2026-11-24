@@ -2,7 +2,7 @@
 
 Fonte canônica: este repositório. As skills são autossuficientes; recursos do
 repositório central e outras skills são opcionais. O pacote da engenharia inclui
-suas referências locais. Os ZIPs não transportam o cofre nem as trilhas pessoais.
+suas referências locais. Os ZIPs não transportam a memória nem as trilhas pessoais.
 
 O contexto compartilhado dos hosts é compilado por
 `config/context-manifest.yml`. `scripts/install-agents.rb` usa o mesmo renderer
@@ -91,21 +91,23 @@ configuração pessoal.
 
 Nas sessões verificadas, o acesso fora do workspace foi liberado em Settings
 → General → File Access → Agent Non-Workspace File Access. Essa opção amplia
-o acesso a arquivos externos, não apenas ao cofre, nem apenas para leitura.
-Como alternativa de menor escopo, inclua o repositório e o cofre nas pastas
-do workspace e mantenha a opção desativada. Confirme sempre a leitura efetiva
-da skill, do índice e do protocolo em uma nova sessão.
+o acesso a arquivos externos, não apenas à memória, nem apenas para leitura.
+Inclua o repositório nas pastas do workspace quando necessário. Confirme a
+leitura efetiva da skill e do índice em uma nova sessão; o acesso à memória
+depende da configuração MCP do host.
 
 ## Contexto e autoridade
 
 O núcleo está em [agent-core.md](../context/agent-core.md). As regras geradas
 contêm sua versão atual e a raiz local da fonte; reaplique o instalador quando
-atualizar o núcleo. O cofre padrão pode ser substituído por um caminho informado
-pelo usuário ou por AI_AGENT_VAULT (convenção deste repositório, não opção nativa
-dos agentes). Nenhum caminho concede acesso fora do sandbox.
+atualizar o núcleo. O backend persistente vem de
+[`config/persistent-memory.yml`](../config/persistent-memory.yml); `.ai-memory.toml`
+define apenas o escopo do MCP quando esse backend é efetivo. Veja
+[seleção e ativação](persistent-memory.md). Nenhum caminho concede acesso fora
+do sandbox.
 
 Nos perfis pessoais, o bloco gerenciado é a fonte canônica de roteamento,
-consulta ao cofre e tratamento de evidências. O instalador preserva preferências
+consulta à memória e tratamento de evidências. O instalador preserva preferências
 fora desse bloco; não edite cópias do núcleo individualmente por host. Depois
 de atualizar a fonte, revise o plano `--user --agents codex,claude,antigravity`
 e aplique-o com `--apply`. Regras de projetos consumidores também precisam ser

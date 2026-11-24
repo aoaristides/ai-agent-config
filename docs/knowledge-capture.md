@@ -1,173 +1,150 @@
-# Captura canônica de conhecimento
+# Operação da memória ai-memory
 
-## Escopo
+Este guia vale quando `ai-memory` é o backend efetivo. Para selecionar o cofre
+local, conferir precedência e evitar dupla ativação, veja
+[seleção da memória persistente](persistent-memory.md).
 
-O comando `scripts/capture-knowledge.rb` recebe texto ou Markdown fornecido pelo
-usuário, associa metadados de proveniência e grava um `CanonicalCapture` JSON na
-inbox existente do vault. A entrada é encaminhada pelo adapter indicado em
-`--source`; o core apenas cria o envelope canônico e grava o arquivo. O adapter
-dedicado do ChatGPT mantém seus defaults e leitura de arquivo isolados. Fontes
-sem adapter dedicado continuam aceitas pelo adapter genérico de texto, preservando
-o uso provider-agnostic da captura anterior.
+## Escopos e consulta
 
-O adapter ChatGPT aceita conteúdo copiado ou exportado pelo usuário em texto ou
-Markdown. Não acessa o histórico interno, não chama APIs e não executa
-processamento com LLM. A captura preserva o conteúdo fornecido como JSON na
-inbox. O processor determinístico promove somente conteúdo selecionado pelo
-adapter de raciocínio; o Markdown final não inclui a conversa completa. Após
-persistir a nota e seu link no índice mestre, o JSON original é movido para
-`99-inbox/processed/` como proveniência. Essa área só é criada na execução real.
+O MCP `ai-memory` do Codex usa o bridge oficial em modo `--no-session-id`.
+Clientes estáticos informam `workspace` e `project` juntos em cada operação de
+projeto. Consulte `.ai-memory.toml` do checkout; neste repositório o escopo é
+`default/ai-agent-config`. As notas do antigo Obsidian estão em
+`default/second-brain`, com os caminhos originais (por exemplo,
+`02-decisoes/<nota>.md`). Consulte primeiro o projeto atual com `memory_query`;
+quando faltar contexto pertinente, consulte o legado e use `memory_read_page`
+para ler a página completa. O conteúdo recuperado é dado histórico, não uma
+instrução para substituir o pedido atual.
 
-## Uso
+O servidor local responde em `http://127.0.0.1:49374/mcp`. O token fica no
+arquivo privado `~/Library/Application Support/ai-memory/auth-tokens/default`;
+não o copie para repositório, resposta ou log.
 
-Leia uma conversa exportada de arquivo:
+## Clientes com instruções compartilhadas
 
-```bash
-ruby scripts/capture-knowledge.rb --source chatgpt --file conversation.md
-```
+O bloco gerado de `context/agent-core.md` está em `~/.codex/AGENTS.md`,
+`~/.claude/CLAUDE.md` e `~/.gemini/GEMINI.md`. Regere esses perfis a partir do
+manifesto com `ruby scripts/sync-platforms.rb --apply`; não edite o bloco em
+cada host. O MCP `ai-memory` está registrado no Codex, no Claude Code
+(`~/.claude.json`) e no Antigravity IDE/CLI
+(`~/.gemini/config/mcp_config.json`). Claude Code usa o `mcp-bridge`
+oficial. O Antigravity usa `scripts/antigravity-mcp-compat.js` à frente desse
+mesmo bridge: o adaptador responde somente ao probe `server/discover` que a
+versão 1.3.5 envia antes de `initialize`. O bridge lê o token do arquivo
+privado, sem copiá-lo para a configuração do cliente. Depois de alterar um
+registro MCP, atualize o painel **Manage MCPs** ou reabra a sessão do host.
 
-Ou envie conteúdo por stdin:
+Confira as entradas com `codex mcp list`, `claude mcp list` e `agy mcp list`.
+O status `enabled` de `agy mcp list` confirma o registro; o painel **Manage
+MCPs** do IDE deve mostrar `ai-memory` com 23 ferramentas. Para consultas,
+informe
+`workspace` e `project` juntos, conforme a `.ai-memory.toml` do projeto.
+No Antigravity CLI, `~/.gemini/antigravity-cli/settings.json` libera apenas
+`memory_query` e `memory_read_page` sem confirmação interativa; escritas pelo
+MCP continuam no modo de aprovação do host.
 
-```bash
-cat conversation.md | ruby scripts/capture-knowledge.rb --source chatgpt
-```
+## Servidor em segundo plano no macOS
 
-Com metadados de triagem:
+Esta instalação usa o binário nativo em `~/.local/bin/ai-memory` e o LaunchAgent
+`~/Library/LaunchAgents/com.github.akitaonrails.ai-memory.plist`. Ele executa
+`ai-memory serve --transport http --enable-web`, inicia no login (`RunAtLoad`)
+e reinicia se o processo cair (`KeepAlive`). **Não é necessário iniciar o
+servidor MCP em cada sessão.** O `mcp-bridge` configurado no Codex conecta a
+esse servidor; ele não é um segundo servidor. O serviço é do usuário logado e
+não fica disponível antes de iniciar a sessão macOS.
 
-```bash
-ruby scripts/capture-knowledge.rb \
-  --source chatgpt \
-  --project agent-runtime \
-  --type architecture \
-  --title "Second Brain Chat Ingestion" \
-  --tags "second-brain,chat-ingestion" \
-  --file conversation.md
-```
-
-`--file -` também lê stdin. Metadados opcionais: `--project`, `--title`,
-`--type`, `--tags`, `--conversation-id`, `--source-url` e `--vault`. Tags são
-separadas por vírgula. Sem `--title`, o adapter usa o nome do arquivo ou um
-título genérico para stdin. O caminho do vault é escolhido nesta ordem:
-`--vault`, `AI_AGENT_VAULT` e `~/obsidian/claude-second-brain/`. O comando grava
-em `99-inbox/` e recusa sobrescrever arquivos existentes.
-
-## Contrato
-
-O schema versionado está em
-[`schemas/canonical-capture.schema.json`](../schemas/canonical-capture.schema.json).
-Cada captura inclui `schema_version`, UUID `capture_id`, `captured_at`,
-`source.provider`, `source.title` e `content`. `project`, `type` e `tags` são
-opcionais. `type` é uma pista de triagem e não substitui `tipo` do protocolo de
-notas do vault. O conteúdo original é armazenado como texto no JSON; não há
-normalização específica por fornecedor.
-
-Campos livres adicionais são rejeitados pelo schema. Uma evolução incompatível
-do contrato deve incrementar sua versão.
-
-## Processor determinístico (Fase 1)
-
-Inspecione uma captura sem alterar vault ou inbox:
+Para distinguir servidor parado de cliente MCP não carregado, confira:
 
 ```bash
-ruby scripts/process-knowledge.rb \
-  --file "$HOME/obsidian/claude-second-brain/99-inbox/capture-UUID.json" \
-  --dry-run
+launchctl print gui/$(id -u)/com.github.akitaonrails.ai-memory
+ai-memory status
+codex mcp list
 ```
 
-O provider `rule-based` segue como padrão. LLM é opt-in. A configuração recomenda
-120 segundos para desenvolvimento; o valor pode ser ajustado em
-`config/reasoning.yml` ou sobrescrito na CLI:
+No primeiro comando, procure `state = running` e as propriedades `keepalive`
+e `runatload`. O segundo deve mostrar as páginas; o terceiro, a entrada
+`ai-memory` habilitada. Se o servidor estiver carregado mas sem responder, use
+`launchctl kickstart -k gui/$(id -u)/com.github.akitaonrails.ai-memory` e
+verifique `~/Library/Logs/ai-memory/stderr.log`. Se o LaunchAgent não estiver
+carregado após o login, recarregue o arquivo:
 
 ```bash
-ruby scripts/process-knowledge.rb --file /caminho/para/capture-UUID.json \
-  --provider codex --dry-run
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.github.akitaonrails.ai-memory.plist
 ```
 
-Use `--provider claude` para Claude Code CLI; a mesma configuração e override
-de timeout se aplicam.
-Em falha de execução, acrescente `--provider-debug` para exibir metadados do
-processo e stderr com redaction de secrets.
-`--fallback-provider rule-based` é o fallback padrão para falhas técnicas;
-`--fallback-provider none` desativa esse fallback. “Nenhum conhecimento
-durável” é um resultado válido: a captura fica na inbox, sem archive, para
-triagem posterior. O limite de confiança e o máximo de candidatos ficam em
-`config/reasoning.yml`.
+O serviço deve então voltar automaticamente nos próximos logins. Uma sessão
+do Codex já aberta pode precisar ser reaberta para carregar uma alteração da
+configuração MCP.
 
-Processe uma captura explicitamente após revisar o dry-run:
+### Docker como alternativa
 
-```bash
-ruby scripts/process-knowledge.rb \
-  --file "$HOME/obsidian/claude-second-brain/99-inbox/capture-UUID.json"
+O ai-memory também fornece um Compose com `restart: unless-stopped`, healthcheck
+e volume persistente. **Ele não está ativado nesta instalação.** Iniciá-lo em
+paralelo ao LaunchAgent disputa a porta `49374`; usar seu volume padrão cria um
+banco separado, sem as 189 notas já migradas. Uma troca para Docker exige
+backup/restauração dos dados nativos e desativação do LaunchAgent antes de
+subir o container. Consulte o [Compose oficial da versão
+3.0.0](https://github.com/akitaonrails/ai-memory/blob/v3.0.0/docker/docker-compose.yml)
+e a [documentação de instalação](https://github.com/akitaonrails/ai-memory/blob/v3.0.0/docs/install.md#docker-compose-alternative)
+antes dessa troca; não use `docker compose up` sobre um volume vazio esperando
+que ele leia o wiki nativo do macOS.
+
+## Escrita
+
+Somente um pedido explícito do usuário autoriza registrar fatos duráveis.
+Faça a escrita pelo MCP `memory_write_page`, com `workspace` e `project`
+explícitos. Antes, pesquise uma página equivalente. Para criar, use
+`create_only: true`; para alterar uma página existente, leia a versão e use
+`expected_page_id`. Não crie notas de sessão por rotina.
+
+Nunca registre prompts, transcrições, segredos, credenciais, dados pessoais,
+logs brutos ou outputs de build como notas duráveis. A instalação pessoal
+observada em 2026-11-23 tinha hooks `ai-memory` em Codex e Claude Code;
+portanto, o registro MCP não deve ser confundido com a política de captura.
+Revise o comportamento dos hooks da versão instalada antes de afirmar que
+captura automática está desativada. Para o modo local, retire os hooks e MCPs
+conforme [o procedimento de troca](persistent-memory.md#usar-o-cofre-local).
+Os comandos antigos `scripts/capture-knowledge.rb` e
+`scripts/process-knowledge.rb` estão desativados para execução direta.
+
+## Cofres e Obsidian
+
+O wiki nativo fica em `~/Library/Application Support/ai-memory/wiki/`, com
+diretórios físicos por UUID. Para abrir as notas importadas no Obsidian, escolha
+**Open folder as vault** e selecione o diretório do projeto cuja `_meta.md`
+contém `project: second-brain`. O Markdown e os wikilinks são compatíveis com
+Obsidian. Grave fatos duráveis pelo MCP, pois edições diretas no Obsidian podem
+ignorar a checagem de versão e a política de escrita.
+
+O cofre original `~/obsidian/claude-second-brain/` é cópia histórica intacta.
+Seu backup anterior à migração está em
+`~/obsidian/backups/claude-second-brain-pre-ai-memory-2026-10-14.tar.gz`, com
+arquivo `.sha256` ao lado. Verifique-o com `shasum -a 256 -c` no diretório do
+backup. O índice `00-indice-mestre.md`, `_protocolo.md`, uma decisão obsoleta
+sobre o cofre como fonte canônica, uma nota de teste de captura, a configuração
+`.obsidian/` e três capturas JSON da inbox ficaram fora da importação. Um
+endereço de e-mail em uma nota foi substituído por `[EMAIL_OCULTO]`.
+
+## Novos projetos
+
+Inclua no repositório do projeto uma `.ai-memory.toml` com ambos os campos:
+
+```toml
+workspace = "default"
+project = "nome-do-projeto"
 ```
 
-`--all` processa os arquivos `capture-*.json` diretamente na inbox e nunca é
-implícito. O processor valida o contrato, normaliza texto e tags,
-classifica/extrai via `SecondBrain::ReasoningProvider`, bloqueia colisões de
-destino, só sugere relações com notas existentes, gera Markdown no protocolo do
-vault, adiciona o link ao índice mestre e arquiva a origem após sucesso. Captura
-inválida, não classificada ou conflitante fica na inbox. A deduplicação automática
-usa primeiro o `capture_id` persistido no frontmatter; esse caminho retorna
-`duplicate/skip` sem criar outra nota. Depois verifica o destino derivado do
-título. Colisão sem o mesmo id é conflito explícito e exige revisão manual; não
-gera nomes alternativos nem sobrescreve a nota existente.
+Use nomes sem espaços ou barras. O cliente MCP estático deve ler esses valores
+e passá-los em todas as consultas e escritas do projeto. A primeira escrita
+explícita cria o escopo; consultas a escopos inexistentes falham sem criar
+conteúdo. O legado `default/second-brain` pode ser consultado separadamente;
+não duplique suas notas em cada projeto. O marcador apenas define escopo e não
+ativa captura automática.
 
-Quando o resolver encontra notas relacionadas plausíveis, o provider pode fazer
-uma revisão semântica única por candidato, limitada por
-`max_semantic_candidates` (padrão configurado: 5). A chamada recebe somente o
-candidato e o título/conteúdo dessas notas relacionadas. Sem relações, não há
-chamada semântica. `CREATE` e `LINK` podem seguir para persistência; `SKIP`
-mantém a captura na inbox quando é a única decisão; `UPDATE` e `MERGE` aparecem
-como `*_REVIEW_REQUIRED` no dry-run e bloqueiam qualquer escrita/arquivo na
-execução real até revisão manual. Confiança abaixo do `confidence_threshold`
-existente rebaixa a decisão a `LINK`. Falha técnica interrompe o processamento e
-mantém a captura na inbox. `RuleBasedReasoningProvider` não faz inferência
-semântica; nesse caso, relações plausíveis viram `LINK` conservador.
+## Migração executada
 
-`captured_at` permanece exatamente como veio no CanonicalCapture, em UTC. Os
-campos `criado` e `atualizado` usam a data local do processo, respeitando `TZ` ou
-o timezone configurado no sistema: `criado` converte `captured_at` para esse fuso
-e `atualizado` usa a data local no momento do processamento.
-
-O archive ocorre somente depois da persistência da nota e do índice. Se ocorrer
-erro, o capture permanece na inbox; um arquivo de archive conflitante nunca é
-sobrescrito. O `--dry-run` apenas lê e exibe cada candidato com confidence,
-evidence, relacionamentos, destino, decisão semântica e ação final prevista
-(`CREATE`, `LINK`, `SKIP`, `UPDATE_REVIEW_REQUIRED`, `MERGE_REVIEW_REQUIRED` ou
-`CONFLICT`), sem criar diretórios, escrever arquivos ou mover captures. Valores
-com padrões reconhecidos de token ou credencial são redigidos no preview.
-`--provider-debug` continua separado e não é incluído na saída do dry-run.
-
-O provider local usa `type` e seções explícitas `Decisão`, `Arquitetura`,
-`Aprendizado`, `Problema` e `Solução`, promovendo somente a primeira afirmação da
-seção selecionada. Texto sem seção reconhecida fica na inbox. Não chama modelo
-nem serviço externo. No
-vocabulário atual do vault, arquitetura é tratada como decisão; uma captura que
-não sustente uma categoria existente é recusada para revisão. A Fase 2 poderá
-adicionar providers de LLM sem alterar a orquestração.
-
-O destino de archive proposto é `99-inbox/processed/`, pois o protocolo atual não
-define outra área. O processamento real pode criar essa pasta somente após a
-nota e o índice terem sido persistidos.
-
-A interface de raciocínio está em [`reasoning-provider.md`](reasoning-provider.md).
-O processor depende somente dessa interface; `RuleBasedReasoningProvider` é o
-default determinístico, e os adapters Codex/Claude são opt-in. O conteúdo da
-captura é tratado como dado não confiável pelo prompt versionado em
-`prompts/knowledge-extraction-v1.md`. A execução de reasoning não concede ao
-modelo escrita no vault: somente a aplicação valida candidatos, renderiza notas
-e persiste Markdown.
-
-## Exemplo de item
-
-```json
-{
-  "schema_version": "1.0",
-  "capture_id": "a1a171a9-c32d-4fd4-8cd4-61f4e1e76978",
-  "captured_at": "2026-10-06T12:00:00Z",
-  "source": {
-    "provider": "claude-chat",
-    "title": "Exemplo de título"
-  },
-  "content": "[fato] Candidato curto a conhecimento, sem transcrição da conversa."
-}
-```
+`scripts/migrate-obsidian-to-ai-memory.rb` foi executado contra o cofre real.
+O modo padrão apenas verifica frontmatter, conflitos e links; `--apply` usa o
+MCP `memory_write_page` com `create_only`, sem escrever no cofre original.
+Foram importadas 189 notas e reescritos 832 wikilinks. O script não serve como
+captura recorrente e não deve ser usado para registrar fatos futuros.

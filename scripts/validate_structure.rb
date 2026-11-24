@@ -5,6 +5,7 @@ require 'json'
 require 'yaml'
 require 'pathname'
 require_relative 'context_compiler'
+require_relative 'persistent_memory'
 
 module StructureValidation
   SLUG = /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/
@@ -48,6 +49,11 @@ module StructureValidation
         next
       end
       check_file.call(relative)
+    end
+    begin
+      PersistentMemory.load_config(root: root)
+    rescue PersistentMemory::ConfigError => e
+      errors << e.message
     end
     Dir.children(File.join(root, 'skills')).sort.each do |name|
       dir = File.join(root, 'skills', name)

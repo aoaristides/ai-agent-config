@@ -1,0 +1,3 @@
+version: 1
+mode: ai-memory
+local_vault: ~/obsidian/claude-second-brain

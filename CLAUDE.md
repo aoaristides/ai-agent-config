@@ -14,7 +14,7 @@ Use este repositório como configuração portátil compartilhada. Preserve as i
 - Modelos reutilizáveis: `templates/`.
 - Prompts curtos de entrada: `prompts/`.
 
-Carregue somente os arquivos necessários à tarefa. Não trate exemplos como fatos do ambiente atual e não replique automaticamente conteúdo do cofre Obsidian.
+Carregue somente os arquivos necessários à tarefa. Não trate exemplos como fatos do ambiente atual e não replique automaticamente páginas do ai-memory.
 
 ## Compatibilidade
 
